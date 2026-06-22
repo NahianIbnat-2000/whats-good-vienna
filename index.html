@@ -3,47 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>What's Good Vienna? — AI Restaurant Finder</title>
+<title>What's Good Vienna?</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background:#0f172a; color:#e2e8f0; height:100vh; overflow:hidden; }
-
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background:#0f172a; color:#e2e8f0; height:100vh; overflow:hidden; }
   .app { display:flex; height:100vh; }
 
-  /* SIDEBAR */
-  .sidebar { width:460px; min-width:460px; background:#1e293b; display:flex; flex-direction:column; border-right:1px solid #334155; position:relative; z-index:20; overflow:hidden; }
-  .sidebar-header { padding:20px; background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%); color:white; position:relative; }
+  .sidebar { width:460px; min-width:460px; background:#1e293b; display:flex; flex-direction:column; border-right:1px solid #334155; z-index:20; }
+  .sidebar-header { padding:20px; background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%); color:white; }
   .sidebar-header h1 { font-size:1.3rem; font-weight:800; margin-bottom:4px; }
   .sidebar-header p { font-size:0.8rem; opacity:0.85; }
   .sidebar-header .stats { display:flex; gap:14px; margin-top:10px; font-size:0.72rem; opacity:0.9; }
 
-  /* Category bar */
-  .category-bar { display:flex; gap:6px; padding:8px 14px; background:#0f172a; border-bottom:1px solid #334155; overflow-x:auto; scrollbar-width:none; }
-  .category-bar::-webkit-scrollbar { display:none; }
-  .category-bar button { padding:5px 12px; border:1px solid #334155; border-radius:16px; background:#1e293b; color:#94a3b8; font-size:0.72rem; cursor:pointer; white-space:nowrap; transition:all 0.2s; font-family:inherit; }
+  .category-bar { display:flex; gap:6px; padding:8px 14px; background:#0f172a; border-bottom:1px solid #334155; overflow-x:auto; }
+  .category-bar button { padding:5px 12px; border:1px solid #334155; border-radius:16px; background:#1e293b; color:#94a3b8; font-size:0.72rem; cursor:pointer; white-space:nowrap; font-family:inherit; }
   .category-bar button:hover { border-color:#dc2626; color:#dc2626; }
   .category-bar button.on { background:#dc2626; color:white; border-color:#dc2626; }
 
-  /* Quick filters */
-  .quick-filters { display:flex; gap:6px; padding:8px 14px; overflow-x:auto; background:#0f172a; border-bottom:1px solid #334155; scrollbar-width:none; }
-  .quick-filters::-webkit-scrollbar { display:none; }
-  .quick-filters button { padding:5px 12px; border:1px solid #334155; border-radius:16px; background:#1e293b; color:#94a3b8; font-size:0.75rem; cursor:pointer; white-space:nowrap; transition:all 0.2s; font-family:inherit; }
+  .quick-filters { display:flex; gap:6px; padding:8px 14px; background:#0f172a; border-bottom:1px solid #334155; overflow-x:auto; }
+  .quick-filters button { padding:5px 12px; border:1px solid #334155; border-radius:16px; background:#1e293b; color:#94a3b8; font-size:0.75rem; cursor:pointer; white-space:nowrap; font-family:inherit; }
   .quick-filters button:hover { border-color:#dc2626; color:#dc2626; background:#fef2f2; }
 
-  /* Chat area */
-  .chat-area { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:12px; }
+  .chat-area { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:12px; min-height:0; }
   .chat-area::-webkit-scrollbar { width:6px; }
   .chat-area::-webkit-scrollbar-thumb { background:#334155; border-radius:3px; }
 
-  .message { max-width:92%; padding:12px 16px; border-radius:16px; font-size:0.88rem; line-height:1.6; animation:fadeIn 0.3s ease; }
-  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .message { max-width:92%; padding:12px 16px; border-radius:16px; font-size:0.88rem; line-height:1.6; }
   .message.user { align-self:flex-end; background:#dc2626; color:white; border-bottom-right-radius:4px; font-weight:500; }
   .message.bot { align-self:flex-start; background:#334155; color:#e2e8f0; border-bottom-left-radius:4px; }
   .message.bot .filter-badges { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; padding-top:10px; border-top:1px solid #475569; }
   .message.bot .filter-badges span { font-size:0.7rem; padding:2px 8px; border-radius:10px; background:#0f172a; color:#94a3b8; }
   .message.bot .filter-badges span.highlight { background:#dc2626; color:white; }
 
-  /* Restaurant cards */
   .restaurant-card { background:#1e293b; border:1px solid #334155; border-radius:12px; padding:14px; margin-top:8px; cursor:pointer; transition:all 0.2s; position:relative; }
   .restaurant-card:hover { border-color:#dc2626; transform:translateY(-1px); box-shadow:0 6px 18px rgba(220,38,38,0.12); }
   .restaurant-card.active { border-color:#dc2626; background:#2a1a1a; }
@@ -52,37 +43,34 @@
   .rating { display:flex; align-items:center; gap:4px; font-size:0.82rem; color:#fbbf24; font-weight:700; background:rgba(251,191,36,0.1); padding:2px 8px; border-radius:12px; }
   .meta-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; align-items:center; }
   .meta-row span { font-size:0.72rem; padding:2px 8px; border-radius:12px; background:#0f172a; color:#94a3b8; }
-  .pill-cuisine { background:#1e3a5f !important; color:#60a5fa !important; }
-  .pill-price { background:#1e3a2f !important; color:#4ade80 !important; }
-  .pill-dist { background:#3f1e3a !important; color:#f472b6 !important; }
-  .pill-taste { background:#3f2e1a !important; color:#fbbf24 !important; }
-  .pill-diet { background:#1e3a2f !important; color:#4ade80 !important; }
-  .pill-vibe { background:#2e1a3f !important; color:#a78bfa !important; }
-  .pill-use { background:#1a2e3f !important; color:#38bdf8 !important; }
+  .pill-c { background:#1e3a5f !important; color:#60a5fa !important; }
+  .pill-p { background:#1e3a2f !important; color:#4ade80 !important; }
+  .pill-d { background:#3f1e3a !important; color:#f472b6 !important; }
+  .pill-t { background:#3f2e1a !important; color:#fbbf24 !important; }
+  .pill-di { background:#1e3a2f !important; color:#4ade80 !important; }
+  .pill-v { background:#2e1a3f !important; color:#a78bfa !important; }
+  .pill-u { background:#1a2e3f !important; color:#38bdf8 !important; }
   .explanation { font-size:0.82rem; color:#cbd5e1; line-height:1.5; }
   .details { margin-top:10px; padding-top:10px; border-top:1px solid #334155; font-size:0.75rem; color:#94a3b8; display:grid; grid-template-columns:1fr 1fr; gap:4px; }
   .details a { color:#f87171; text-decoration:none; font-weight:500; }
   .match-score { position:absolute; top:6px; right:6px; font-size:0.62rem; font-weight:700; color:#dc2626; background:rgba(220,38,38,0.1); padding:2px 6px; border-radius:8px; opacity:0.7; }
 
-  /* Input */
-  .input-area { padding:14px 18px; border-top:1px solid #334155; background:#1e293b; }
+  .input-area { padding:14px 18px; border-top:1px solid #334155; background:#1e293b; flex-shrink:0; }
   .input-wrapper { display:flex; gap:8px; align-items:center; }
-  .input-wrapper input { flex:1; padding:12px 16px; border:2px solid #334155; border-radius:24px; font-size:0.88rem; outline:none; transition:all 0.2s; background:#0f172a; color:#e2e8f0; font-family:inherit; }
-  .input-wrapper input:focus { border-color:#dc2626; box-shadow:0 0 0 3px rgba(220,38,38,0.12); }
+  .input-wrapper input { flex:1; padding:12px 16px; border:2px solid #334155; border-radius:24px; font-size:0.88rem; outline:none; background:#0f172a; color:#e2e8f0; font-family:inherit; }
+  .input-wrapper input:focus { border-color:#dc2626; }
   .input-wrapper input::placeholder { color:#64748b; }
-  .input-wrapper button { padding:12px 20px; background:#dc2626; color:white; border:none; border-radius:24px; font-weight:700; cursor:pointer; transition:all 0.2s; font-family:inherit; }
+  .input-wrapper button { padding:12px 20px; background:#dc2626; color:white; border:none; border-radius:24px; font-weight:700; cursor:pointer; font-family:inherit; font-size:0.9rem; }
   .input-wrapper button:hover { background:#b91c1c; }
   .input-wrapper button:disabled { background:#475569; cursor:not-allowed; }
 
-  /* Welcome */
   .welcome { text-align:center; padding:40px 20px; color:#94a3b8; }
   .welcome h2 { font-size:1.2rem; color:#f8fafc; margin-bottom:8px; font-weight:700; }
   .welcome p { font-size:0.82rem; line-height:1.6; max-width:300px; margin:0 auto 16px; }
   .welcome .examples { display:flex; flex-direction:column; gap:6px; max-width:320px; margin:0 auto; }
-  .welcome .examples button { background:#1e293b; border:1px solid #334155; padding:8px 14px; border-radius:20px; font-size:0.78rem; color:#cbd5e1; cursor:pointer; transition:all 0.2s; text-align:left; font-family:inherit; display:flex; align-items:center; gap:6px; }
-  .welcome .examples button:hover { background:#dc2626; color:white; border-color:#dc2626; transform:translateX(3px); }
+  .welcome .examples button { background:#1e293b; border:1px solid #334155; padding:8px 14px; border-radius:20px; font-size:0.78rem; color:#cbd5e1; cursor:pointer; text-align:left; font-family:inherit; display:flex; align-items:center; gap:6px; }
+  .welcome .examples button:hover { background:#dc2626; color:white; border-color:#dc2626; }
 
-  /* Loading */
   .loading { display:flex; align-items:center; gap:8px; color:#94a3b8; font-size:0.82rem; }
   .loading-dots { display:flex; gap:4px; }
   .loading-dots span { width:7px; height:7px; background:#dc2626; border-radius:50%; animation:bounce 1.4s infinite ease-in-out; }
@@ -90,11 +78,9 @@
   .loading-dots span:nth-child(3) { animation-delay:0.4s; }
   @keyframes bounce { 0%,80%,100%{transform:scale(0)} 40%{transform:scale(1)} }
 
-  /* Map */
   .map-wrap { flex:1; position:relative; min-width:0; background:#1e293b; }
   #map { height:100%; width:100%; }
 
-  /* Responsive */
   @media (max-width:900px) { .app { flex-direction:column; } .sidebar { width:100%; min-width:auto; height:55vh; } .map-wrap { height:45vh; } }
 </style>
 </head>
@@ -110,35 +96,26 @@
         <span>🏷️ 9 taste tags</span>
       </div>
     </div>
-
-    <div class="category-bar" id="categoryBar"></div>
-    <div class="quick-filters" id="quickFilters"></div>
-
+    <div class="category-bar" id="catBar"></div>
+    <div class="quick-filters" id="qFilters"></div>
     <div class="chat-area" id="chatArea"></div>
-
     <div class="input-area">
       <div class="input-wrapper">
         <input type="text" id="chatInput" placeholder="e.g., spicy Indian curry under €15" />
-        <button id="sendBtn">Send</button>
+        <button id="sendBtn" type="button">Send</button>
       </div>
     </div>
   </div>
-
-  <div class="map-wrap">
-    <div id="map"></div>
-  </div>
+  <div class="map-wrap"><div id="map"></div></div>
 </div>
 
-<!-- Leaflet CSS & JS from CDN (most reliable) -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 
 <script>
-// ===== DATA =====
 const RESTAURANTS = [{"name": "Saffron", "cuisine": "Indian", "city": "Vienna", "lat": 48.1967, "lon": 16.363, "address": "Margaretenstra\u00dfe 78, 1050 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "curry", "mild", "creamy"], "food_type": ["rice", "naan", "soup", "curry"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch"], "opening_hours": "Mo-Su 12:00-23:00", "rating": 4.4, "review_count": 412, "phone": "+43 1 586 22 33", "website": "https://saffron-vienna.at", "source": "OSM", "id": 1}, {"name": "Tandoor", "cuisine": "Indian", "city": "Vienna", "lat": 48.21, "lon": 16.355, "address": "Alser Stra\u00dfe 32, 1080 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "curry", "creamy", "mild"], "food_type": ["rice", "naan", "curry", "soup"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "cheap eats"], "opening_hours": "Tu-Su 11:30-22:30", "rating": 4.2, "review_count": 198, "phone": "+43 1 405 12 34", "website": "https://tandoor-wien.at", "source": "OSM", "id": 2}, {"name": "Bombay Palace", "cuisine": "Indian", "city": "Vienna", "lat": 48.202, "lon": 16.36, "address": "Mariahilfer Stra\u00dfe 85, 1060 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "curry", "creamy", "mild"], "food_type": ["rice", "naan", "curry", "soup"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "romantic"], "use_case": ["date", "family"], "opening_hours": "Mo-Su 12:00-23:00", "rating": 4.1, "review_count": 156, "phone": "+43 1 587 99 00", "website": "https://bombaypalace.at", "source": "OSM", "id": 3}, {"name": "Masala House", "cuisine": "Indian", "city": "Vienna", "lat": 48.215, "lon": 16.37, "address": "Friedrichstra\u00dfe 12, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "curry", "creamy", "mild"], "food_type": ["rice", "naan", "curry", "soup"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "family"], "use_case": ["quick lunch", "family"], "opening_hours": "Mo-Sa 11:00-22:00", "rating": 4.0, "review_count": 134, "phone": "+43 1 512 77 88", "website": "https://masalahouse.at", "source": "OSM", "id": 4}, {"name": "Vietnam Village", "cuisine": "Vietnamese", "city": "Vienna", "lat": 48.2, "lon": 16.355, "address": "Rechte Wienzeile 5, 1050 Wien", "price_level": "\u20ac", "taste_tags": ["spicy", "mild", "sour", "umami", "soup"], "food_type": ["noodles", "rice", "soup"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats"], "opening_hours": "Mo-Su 11:00-21:00", "rating": 4.2, "review_count": 278, "phone": "+43 1 587 33 44", "website": "https://vietnamvillage.at", "source": "OSM", "id": 5}, {"name": "Pho 24", "cuisine": "Vietnamese", "city": "Vienna", "lat": 48.205, "lon": 16.35, "address": "Mariahilfer Stra\u00dfe 55, 1060 Wien", "price_level": "\u20ac", "taste_tags": ["spicy", "mild", "sour", "umami", "soup"], "food_type": ["noodles", "soup", "rice"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats"], "opening_hours": "Mo-Su 11:00-22:00", "rating": 4.0, "review_count": 312, "phone": "+43 1 587 44 55", "website": "https://pho24.at", "source": "OSM", "id": 6}, {"name": "Banh Mi Corner", "cuisine": "Vietnamese", "city": "Vienna", "lat": 48.198, "lon": 16.345, "address": "Gumpendorfer Stra\u00dfe 22, 1060 Wien", "price_level": "\u20ac", "taste_tags": ["spicy", "mild", "sour", "umami"], "food_type": ["rice", "noodles"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "takeaway"], "opening_hours": "Mo-Sa 10:00-21:00", "rating": 3.9, "review_count": 189, "phone": "+43 1 585 66 77", "website": "https://banhmicorner.at", "source": "OSM", "id": 7}, {"name": "Saigon Kitchen", "cuisine": "Vietnamese", "city": "Vienna", "lat": 48.21, "lon": 16.38, "address": "Praterstra\u00dfe 25, 1020 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "mild", "sour", "umami", "soup"], "food_type": ["noodles", "rice", "soup"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "date"], "opening_hours": "Mo-Su 11:30-22:00", "rating": 4.3, "review_count": 245, "phone": "+43 1 214 55 66", "website": "https://saigonkitchen.at", "source": "OSM", "id": 8}, {"name": "Hanoi House", "cuisine": "Vietnamese", "city": "Vienna", "lat": 48.215, "lon": 16.355, "address": "W\u00e4hringer Stra\u00dfe 30, 1090 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "mild", "sour", "umami"], "food_type": ["noodles", "rice", "soup"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "romantic"], "use_case": ["date", "family"], "opening_hours": "Tu-Su 12:00-22:00", "rating": 4.1, "review_count": 178, "phone": "+43 1 319 88 99", "website": "https://hanoihouse.at", "source": "OSM", "id": 9}, {"name": "Sichuan Kitchen", "cuisine": "Chinese", "city": "Vienna", "lat": 48.213, "lon": 16.385, "address": "Praterstra\u00dfe 33, 1020 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "mild", "umami", "fried"], "food_type": ["noodles", "rice", "soup", "curry"], "diet": ["vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch"], "opening_hours": "Mo-Su 11:30-22:00", "rating": 4.3, "review_count": 312, "phone": "+43 1 214 55 66", "website": "https://sichuan-kitchen.at", "source": "OSM", "id": 10}, {"name": "Mama Liu", "cuisine": "Chinese", "city": "Vienna", "lat": 48.21, "lon": 16.38, "address": "Praterstra\u00dfe 15, 1020 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "mild", "umami", "fried", "soup"], "food_type": ["noodles", "rice", "soup", "curry"], "diet": ["vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch"], "opening_hours": "Mo-Su 11:00-22:00", "rating": 4.0, "review_count": 345, "phone": "+43 1 214 11 22", "website": "https://mamaliu.at", "source": "OSM", "id": 11}, {"name": "Dim Sum Palace", "cuisine": "Chinese", "city": "Vienna", "lat": 48.205, "lon": 16.375, "address": "K\u00e4rntner Stra\u00dfe 60, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "umami", "fried", "sweet"], "food_type": ["noodles", "rice", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch"], "opening_hours": "Mo-Su 11:00-22:00", "rating": 4.2, "review_count": 267, "phone": "+43 1 512 99 00", "website": "https://dimsum.at", "source": "OSM", "id": 12}, {"name": "Peking Duck House", "cuisine": "Chinese", "city": "Vienna", "lat": 48.2, "lon": 16.37, "address": "Operngasse 15, 1010 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["mild", "umami", "fried", "sweet", "creamy"], "food_type": ["rice", "noodles", "soup"], "diet": ["vegetarian"], "vibe": ["romantic", "family"], "use_case": ["date", "family"], "opening_hours": "Mo-Su 12:00-23:00", "rating": 4.4, "review_count": 389, "phone": "+43 1 586 11 22", "website": "https://pekingduck.at", "source": "OSM", "id": 13}, {"name": "Hot Pot Vienna", "cuisine": "Chinese", "city": "Vienna", "lat": 48.215, "lon": 16.38, "address": "Leopoldsgasse 20, 1020 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["spicy", "mild", "umami", "soup"], "food_type": ["noodles", "rice", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "date"], "opening_hours": "Mo-Su 17:00-00:00", "rating": 4.3, "review_count": 234, "phone": "+43 1 214 33 44", "website": "https://hotpotvienna.at", "source": "OSM", "id": 14}, {"name": "Lucky Dragon", "cuisine": "Chinese", "city": "Vienna", "lat": 48.192, "lon": 16.35, "address": "Sch\u00f6nbrunner Stra\u00dfe 100, 1120 Wien", "price_level": "\u20ac", "taste_tags": ["spicy", "mild", "fried", "umami"], "food_type": ["noodles", "rice"], "diet": ["vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "takeaway"], "opening_hours": "Mo-Su 10:00-22:00", "rating": 3.8, "review_count": 198, "phone": "+43 1 804 55 66", "website": "https://luckydragon.at", "source": "OSM", "id": 15}, {"name": "An-Do", "cuisine": "Thai", "city": "Vienna", "lat": 48.2082, "lon": 16.3738, "address": "W\u00e4hringer Stra\u00dfe 12, 1090 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "mild", "sweet", "sour", "umami"], "food_type": ["noodles", "rice", "soup", "curry"], "diet": ["vegetarian"], "vibe": ["casual", "romantic"], "use_case": ["date", "family"], "opening_hours": "Mo-Sa 11:30-22:00", "rating": 4.3, "review_count": 342, "phone": "+43 1 319 55 88", "website": "https://an-do.at", "source": "OSM", "id": 16}, {"name": "Thai Lotus", "cuisine": "Thai", "city": "Vienna", "lat": 48.2015, "lon": 16.3695, "address": "K\u00e4rntner Stra\u00dfe 45, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "mild", "sweet", "sour", "umami"], "food_type": ["noodles", "rice", "soup", "curry"], "diet": ["vegetarian"], "vibe": ["casual", "romantic"], "use_case": ["date", "family", "quick lunch"], "opening_hours": "Mo-Su 11:00-23:00", "rating": 4.1, "review_count": 287, "phone": "+43 1 512 34 56", "website": "https://thailotus.wien", "source": "OSM", "id": 17}, {"name": "Bangkok Street", "cuisine": "Thai", "city": "Vienna", "lat": 48.198, "lon": 16.36, "address": "Mariahilfer Stra\u00dfe 40, 1060 Wien", "price_level": "\u20ac", "taste_tags": ["spicy", "mild", "sweet", "sour", "umami"], "food_type": ["noodles", "rice", "soup", "curry"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "takeaway"], "opening_hours": "Mo-Su 11:00-22:00", "rating": 3.9, "review_count": 234, "phone": "+43 1 587 77 88", "website": "https://bangkokstreet.at", "source": "OSM", "id": 18}, {"name": "Pad Thai Express", "cuisine": "Thai", "city": "Vienna", "lat": 48.205, "lon": 16.385, "address": "Praterstra\u00dfe 10, 1020 Wien", "price_level": "\u20ac", "taste_tags": ["spicy", "mild", "sweet", "sour", "umami"], "food_type": ["noodles", "rice", "soup"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "takeaway"], "opening_hours": "Mo-Su 11:00-21:00", "rating": 3.8, "review_count": 178, "phone": "+43 1 214 88 99", "website": "https://padthaiexpress.at", "source": "OSM", "id": 19}, {"name": "Miyabi", "cuisine": "Japanese", "city": "Vienna", "lat": 48.205, "lon": 16.365, "address": "K\u00e4rntner Stra\u00dfe 55, 1010 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["mild", "umami", "sweet", "sour"], "food_type": ["rice", "noodles", "soup"], "diet": ["vegetarian"], "vibe": ["romantic", "casual"], "use_case": ["date", "family"], "opening_hours": "Mo-Sa 12:00-22:00", "rating": 4.4, "review_count": 456, "phone": "+43 1 512 44 55", "website": "https://miyabi.at", "source": "OSM", "id": 20}, {"name": "Sakura", "cuisine": "Japanese", "city": "Vienna", "lat": 48.198, "lon": 16.35, "address": "Mariahilfer Stra\u00dfe 70, 1060 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "umami", "sweet", "sour"], "food_type": ["rice", "noodles", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "romantic"], "use_case": ["date", "family", "quick lunch"], "opening_hours": "Mo-Su 11:30-22:00", "rating": 4.1, "review_count": 312, "phone": "+43 1 587 66 77", "website": "https://sakura-wien.at", "source": "OSM", "id": 21}, {"name": "Ramen Bar", "cuisine": "Japanese", "city": "Vienna", "lat": 48.21, "lon": 16.375, "address": "K\u00e4rntner Durchgang 12, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "mild", "umami", "soup", "creamy"], "food_type": ["noodles", "soup", "rice"], "diet": ["vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats"], "opening_hours": "Mo-Su 11:00-22:00", "rating": 4.2, "review_count": 289, "phone": "+43 1 512 55 66", "website": "https://ramenbar.at", "source": "OSM", "id": 22}, {"name": "Tokyo Sushi", "cuisine": "Japanese", "city": "Vienna", "lat": 48.215, "lon": 16.365, "address": "Friedrichstra\u00dfe 20, 1010 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["mild", "umami", "sweet", "sour"], "food_type": ["rice", "noodles"], "diet": ["vegetarian"], "vibe": ["romantic", "casual"], "use_case": ["date", "family"], "opening_hours": "Tu-Su 18:00-23:00", "rating": 4.5, "review_count": 378, "phone": "+43 1 319 11 22", "website": "https://tokyosushi.at", "source": "OSM", "id": 23}, {"name": "Kim Kocht", "cuisine": "Korean", "city": "Vienna", "lat": 48.196, "lon": 16.345, "address": "Schmalzhofgasse 19, 1060 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "mild", "sweet", "umami", "fried"], "food_type": ["rice", "noodles", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "romantic"], "use_case": ["date", "family"], "opening_hours": "Tu-Sa 18:00-23:00", "rating": 4.5, "review_count": 234, "phone": "+43 1 587 88 99", "website": "https://kimkocht.at", "source": "OSM", "id": 24}, {"name": "Seoul Kitchen", "cuisine": "Korean", "city": "Vienna", "lat": 48.205, "lon": 16.355, "address": "Mariahilfer Stra\u00dfe 30, 1060 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "mild", "sweet", "umami", "fried"], "food_type": ["rice", "noodles", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch"], "opening_hours": "Mo-Su 11:30-22:00", "rating": 4.1, "review_count": 198, "phone": "+43 1 587 33 44", "website": "https://seoulkitchen.at", "source": "OSM", "id": 25}, {"name": "K-BBQ", "cuisine": "Korean", "city": "Vienna", "lat": 48.21, "lon": 16.36, "address": "K\u00e4rntner Stra\u00dfe 40, 1010 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["spicy", "mild", "sweet", "umami", "fried"], "food_type": ["rice", "noodles", "soup"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "date"], "opening_hours": "Mo-Su 17:00-00:00", "rating": 4.3, "review_count": 267, "phone": "+43 1 512 77 88", "website": "https://kbbq.at", "source": "OSM", "id": 26}, {"name": "Kebap House", "cuisine": "Turkish", "city": "Vienna", "lat": 48.209, "lon": 16.376, "address": "Stephansplatz 8, 1010 Wien", "price_level": "\u20ac", "taste_tags": ["spicy", "mild", "umami", "fried"], "food_type": ["rice", "noodles", "soup"], "diet": ["halal"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "late-night", "takeaway"], "opening_hours": "Mo-Su 10:00-02:00", "rating": 3.8, "review_count": 445, "phone": "+43 1 512 77 88", "website": "https://kebaphouse.wien", "source": "OSM", "id": 27}, {"name": "Sultan", "cuisine": "Turkish", "city": "Vienna", "lat": 48.192, "lon": 16.34, "address": "Sch\u00f6nbrunner Stra\u00dfe 220, 1120 Wien", "price_level": "\u20ac", "taste_tags": ["spicy", "mild", "umami", "fried"], "food_type": ["rice", "noodles", "soup"], "diet": ["halal"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "takeaway"], "opening_hours": "Mo-Su 10:00-23:00", "rating": 3.9, "review_count": 234, "phone": "+43 1 804 33 44", "website": "https://sultan-kebap.at", "source": "OSM", "id": 28}, {"name": "Levante", "cuisine": "Lebanese", "city": "Vienna", "lat": 48.204, "lon": 16.358, "address": "Naschmarkt 12, 1060 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "mild", "sweet", "umami", "fried"], "food_type": ["rice", "noodles", "soup"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch"], "opening_hours": "Mo-Sa 09:00-22:00", "rating": 4.2, "review_count": 312, "phone": "+43 1 587 11 22", "website": "https://levante-wien.at", "source": "OSM", "id": 29}, {"name": "Neni", "cuisine": "Israeli", "city": "Vienna", "lat": 48.202, "lon": 16.355, "address": "Naschmarkt 1, 1060 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["spicy", "mild", "sweet", "umami", "fried"], "food_type": ["rice", "noodles", "soup"], "diet": ["halal", "vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "date"], "opening_hours": "Mo-Su 09:00-23:00", "rating": 4.3, "review_count": 567, "phone": "+43 1 585 44 55", "website": "https://neni.at", "source": "OSM", "id": 30}, {"name": "Persian Palace", "cuisine": "Persian", "city": "Vienna", "lat": 48.204, "lon": 16.368, "address": "Fleischmarkt 20, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "sweet", "umami", "creamy"], "food_type": ["rice", "noodles", "soup"], "diet": ["halal", "vegetarian"], "vibe": ["romantic", "family"], "use_case": ["date", "family"], "opening_hours": "Mo-Sa 12:00-22:00", "rating": 4.5, "review_count": 189, "phone": "+43 1 533 99 00", "website": "https://persianpalace.at", "source": "OSM", "id": 31}, {"name": "Zum Schwarzen Kameel", "cuisine": "Austrian", "city": "Vienna", "lat": 48.209, "lon": 16.369, "address": "Bognergasse 5, 1010 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["mild", "sweet", "creamy", "fried"], "food_type": ["rice", "noodles", "soup"], "diet": ["vegetarian"], "vibe": ["romantic", "casual"], "use_case": ["date", "family"], "opening_hours": "Mo-Sa 11:00-23:00", "rating": 4.5, "review_count": 678, "phone": "+43 1 533 81 25", "website": "https://kameel.at", "source": "OSM", "id": 32}, {"name": "Figlm\u00fcller", "cuisine": "Austrian", "city": "Vienna", "lat": 48.2095, "lon": 16.3705, "address": "Wollzeile 5, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "fried", "creamy"], "food_type": ["noodles", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch"], "opening_hours": "Mo-Su 11:30-22:00", "rating": 4.4, "review_count": 892, "phone": "+43 1 512 61 77", "website": "https://figlmuller.at", "source": "OSM", "id": 33}, {"name": "Plachutta", "cuisine": "Austrian", "city": "Vienna", "lat": 48.201, "lon": 16.368, "address": "Wollzeile 38, 1010 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["mild", "creamy", "soup"], "food_type": ["soup", "noodles"], "diet": ["vegetarian"], "vibe": ["romantic", "family"], "use_case": ["date", "family"], "opening_hours": "Mo-Su 11:30-23:00", "rating": 4.3, "review_count": 756, "phone": "+43 1 512 88 33", "website": "https://plachutta.at", "source": "OSM", "id": 34}, {"name": "Gasthaus P\u00f6schl", "cuisine": "Austrian", "city": "Vienna", "lat": 48.206, "lon": 16.377, "address": "Weihburggasse 17, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "fried", "creamy"], "food_type": ["noodles", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch"], "opening_hours": "Mo-Sa 11:00-22:00", "rating": 4.2, "review_count": 445, "phone": "+43 1 512 33 44", "website": "https://poeschl.at", "source": "OSM", "id": 35}, {"name": "Steffl Br\u00e4u", "cuisine": "Austrian", "city": "Vienna", "lat": 48.2085, "lon": 16.3725, "address": "K\u00e4rntner Stra\u00dfe 19, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "fried", "creamy"], "food_type": ["noodles", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch", "late-night"], "opening_hours": "Mo-Su 11:00-00:00", "rating": 4.0, "review_count": 567, "phone": "+43 1 533 55 66", "website": "https://stefflbrau.at", "source": "OSM", "id": 36}, {"name": "Bierhof", "cuisine": "Austrian", "city": "Vienna", "lat": 48.208, "lon": 16.378, "address": "Rabensteig 6, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "fried", "creamy"], "food_type": ["noodles", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "late-night"], "opening_hours": "Mo-Sa 16:00-02:00", "rating": 4.1, "review_count": 456, "phone": "+43 1 512 66 77", "website": "https://bierhof.at", "source": "OSM", "id": 37}, {"name": "Salzberg", "cuisine": "Austrian", "city": "Vienna", "lat": 48.203, "lon": 16.38, "address": "Franz-Josefs-Kai 27, 1010 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["mild", "creamy", "soup", "fried"], "food_type": ["soup", "noodles"], "diet": ["vegetarian"], "vibe": ["romantic", "family"], "use_case": ["date", "family"], "opening_hours": "Mo-Su 11:30-23:00", "rating": 4.3, "review_count": 234, "phone": "+43 1 533 88 99", "website": "https://salzberg.at", "source": "OSM", "id": 38}, {"name": "Gmoakeller", "cuisine": "Austrian", "city": "Vienna", "lat": 48.201, "lon": 16.385, "address": "Leopoldsgasse 10, 1020 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "fried", "creamy"], "food_type": ["noodles", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch"], "opening_hours": "Mo-Sa 11:00-23:00", "rating": 4.2, "review_count": 189, "phone": "+43 1 214 44 55", "website": "https://gmoakeller.at", "source": "OSM", "id": 39}, {"name": "Trattoria da Enzo", "cuisine": "Italian", "city": "Vienna", "lat": 48.208, "lon": 16.371, "address": "Bognergasse 5, 1010 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["mild", "sweet", "creamy", "umami"], "food_type": ["noodles", "rice", "soup"], "diet": ["vegetarian"], "vibe": ["romantic", "casual"], "use_case": ["date", "family"], "opening_hours": "Tu-Su 12:00-23:00", "rating": 4.6, "review_count": 567, "phone": "+43 1 512 11 22", "website": "https://trattoria-enzo.at", "source": "OSM", "id": 40}, {"name": "Pizzeria Roma", "cuisine": "Italian", "city": "Vienna", "lat": 48.195, "lon": 16.36, "address": "Rechte Wienzeile 15, 1050 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "sweet", "umami", "fried"], "food_type": ["noodles", "rice"], "diet": ["vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch"], "opening_hours": "Mo-Su 11:00-23:00", "rating": 4.1, "review_count": 423, "phone": "+43 1 587 22 33", "website": "https://pizzeriaroma.at", "source": "OSM", "id": 41}, {"name": "La Piazza", "cuisine": "Italian", "city": "Vienna", "lat": 48.215, "lon": 16.35, "address": "Alserbachstra\u00dfe 12, 1090 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "sweet", "umami", "creamy"], "food_type": ["noodles", "rice", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch"], "opening_hours": "Mo-Sa 11:30-22:00", "rating": 4.2, "review_count": 298, "phone": "+43 1 319 44 55", "website": "https://lapiazza.wien", "source": "OSM", "id": 42}, {"name": "Vapiano", "cuisine": "Italian", "city": "Vienna", "lat": 48.207, "lon": 16.372, "address": "K\u00e4rntner Stra\u00dfe 10, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "sweet", "umami"], "food_type": ["noodles", "rice"], "diet": ["vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats"], "opening_hours": "Mo-Su 11:00-23:00", "rating": 3.7, "review_count": 678, "phone": "+43 1 533 11 22", "website": "https://vapiano.at", "source": "OSM", "id": 43}, {"name": "Bistro Provence", "cuisine": "French", "city": "Vienna", "lat": 48.203, "lon": 16.375, "address": "K\u00e4rntner Durchgang 8, 1010 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["mild", "sweet", "creamy", "umami"], "food_type": ["noodles", "rice", "soup"], "diet": ["vegetarian"], "vibe": ["romantic", "casual"], "use_case": ["date", "family"], "opening_hours": "Tu-Su 18:00-23:00", "rating": 4.4, "review_count": 234, "phone": "+43 1 512 66 77", "website": "https://bistroprovence.at", "source": "OSM", "id": 44}, {"name": "Le Petit Caf\u00e9", "cuisine": "French", "city": "Vienna", "lat": 48.198, "lon": 16.365, "address": "Naschmarkt 45, 1060 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "sweet", "creamy", "umami"], "food_type": ["noodles", "rice", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "cafe"], "use_case": ["date", "quick lunch", "study cafe"], "opening_hours": "Mo-Sa 09:00-22:00", "rating": 4.3, "review_count": 345, "phone": "+43 1 587 88 99", "website": "https://lepetitcafe.at", "source": "OSM", "id": 45}, {"name": "Mexikano", "cuisine": "Mexican", "city": "Vienna", "lat": 48.205, "lon": 16.372, "address": "Rotenturmstra\u00dfe 16, 1010 Wien", "price_level": "\u20ac", "taste_tags": ["spicy", "mild", "sweet", "umami", "fried"], "food_type": ["rice", "noodles", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "late-night"], "opening_hours": "Mo-Sa 11:00-00:00", "rating": 4.0, "review_count": 256, "phone": "+43 1 533 44 55", "website": "https://mexikano.at", "source": "OSM", "id": 46}, {"name": "El Burro", "cuisine": "Mexican", "city": "Vienna", "lat": 48.198, "lon": 16.35, "address": "Mariahilfer Stra\u00dfe 45, 1060 Wien", "price_level": "\u20ac", "taste_tags": ["spicy", "mild", "sweet", "umami", "fried"], "food_type": ["rice", "noodles"], "diet": ["vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "takeaway"], "opening_hours": "Mo-Su 11:00-23:00", "rating": 3.9, "review_count": 178, "phone": "+43 1 587 66 77", "website": "https://elburro.at", "source": "OSM", "id": 47}, {"name": "Swing Kitchen", "cuisine": "Burger", "city": "Vienna", "lat": 48.2, "lon": 16.35, "address": "Operngasse 24, 1010 Wien", "price_level": "\u20ac", "taste_tags": ["mild", "sweet", "umami", "fried"], "food_type": ["noodles", "rice"], "diet": ["vegetarian", "vegan"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "takeaway"], "opening_hours": "Mo-Su 11:00-22:00", "rating": 4.1, "review_count": 456, "phone": "+43 1 586 22 33", "website": "https://swingkitchen.com", "source": "OSM", "id": 48}, {"name": "McDonald's Stephansplatz", "cuisine": "Burger", "city": "Vienna", "lat": 48.2085, "lon": 16.372, "address": "Stephansplatz 8, 1010 Wien", "price_level": "\u20ac", "taste_tags": ["mild", "sweet", "umami", "fried"], "food_type": ["noodles", "rice"], "diet": ["vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "late-night", "takeaway"], "opening_hours": "Mo-Su 06:00-02:00", "rating": 3.5, "review_count": 1234, "phone": "+43 1 512 77 88", "website": "https://mcdonalds.at", "source": "OSM", "id": 49}, {"name": "Burger King", "cuisine": "Burger", "city": "Vienna", "lat": 48.201, "lon": 16.37, "address": "K\u00e4rntner Stra\u00dfe 38, 1010 Wien", "price_level": "\u20ac", "taste_tags": ["mild", "sweet", "umami", "fried"], "food_type": ["noodles", "rice"], "diet": ["vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "takeaway"], "opening_hours": "Mo-Su 10:00-23:00", "rating": 3.4, "review_count": 890, "phone": "+43 1 512 99 00", "website": "https://burgerking.at", "source": "OSM", "id": 50}, {"name": "Nordsee", "cuisine": "Seafood", "city": "Vienna", "lat": 48.208, "lon": 16.374, "address": "K\u00e4rntner Stra\u00dfe 20, 1010 Wien", "price_level": "\u20ac", "taste_tags": ["mild", "umami", "fried"], "food_type": ["rice", "noodles", "soup"], "diet": ["vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "takeaway"], "opening_hours": "Mo-Sa 09:00-20:00", "rating": 3.6, "review_count": 345, "phone": "+43 1 512 33 44", "website": "https://nordsee.at", "source": "OSM", "id": 51}, {"name": "Tian", "cuisine": "Vegetarian", "city": "Vienna", "lat": 48.206, "lon": 16.372, "address": "Himmelpfortgasse 23, 1010 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["mild", "sweet", "creamy", "umami"], "food_type": ["noodles", "rice", "soup"], "diet": ["vegetarian", "vegan"], "vibe": ["romantic", "casual"], "use_case": ["date", "family"], "opening_hours": "Tu-Sa 18:00-23:00", "rating": 4.5, "review_count": 345, "phone": "+43 1 890 44 55", "website": "https://tian-restaurant.at", "source": "OSM", "id": 52}, {"name": "Hilde", "cuisine": "Vegetarian", "city": "Vienna", "lat": 48.198, "lon": 16.34, "address": "Br\u00fcckengasse 16, 1050 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["mild", "sweet", "creamy", "umami"], "food_type": ["noodles", "rice", "soup"], "diet": ["vegetarian", "vegan"], "vibe": ["casual", "family"], "use_case": ["family", "quick lunch"], "opening_hours": "Mo-Sa 11:00-22:00", "rating": 4.3, "review_count": 234, "phone": "+43 1 587 44 55", "website": "https://hilde-wien.at", "source": "OSM", "id": 53}, {"name": "Formosa", "cuisine": "Vegetarian", "city": "Vienna", "lat": 48.21, "lon": 16.36, "address": "Lerchenfelder Stra\u00dfe 15, 1070 Wien", "price_level": "\u20ac", "taste_tags": ["mild", "spicy", "umami", "fried"], "food_type": ["noodles", "rice", "soup"], "diet": ["vegetarian", "vegan"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats"], "opening_hours": "Mo-Su 11:30-21:00", "rating": 4.0, "review_count": 189, "phone": "+43 1 526 66 77", "website": "https://formosa.at", "source": "OSM", "id": 54}, {"name": "Motto am Fluss", "cuisine": "International", "city": "Vienna", "lat": 48.211, "lon": 16.375, "address": "Schwedenplatz 2, 1010 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["mild", "sweet", "creamy", "umami"], "food_type": ["noodles", "rice", "soup"], "diet": ["vegetarian"], "vibe": ["romantic", "casual"], "use_case": ["date", "family"], "opening_hours": "Mo-Su 10:00-00:00", "rating": 4.2, "review_count": 678, "phone": "+43 1 252 55 10", "website": "https://mottoamfluss.at", "source": "OSM", "id": 55}, {"name": "Das Loft", "cuisine": "International", "city": "Vienna", "lat": 48.2115, "lon": 16.376, "address": "Praterstra\u00dfe 1, 1020 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["mild", "sweet", "creamy", "umami"], "food_type": ["noodles", "rice", "soup"], "diet": ["vegetarian"], "vibe": ["romantic", "casual"], "use_case": ["date", "family"], "opening_hours": "Tu-Sa 18:00-00:00", "rating": 4.4, "review_count": 345, "phone": "+43 1 227 00 0", "website": "https://dasloft.at", "source": "OSM", "id": 56}, {"name": "Demel", "cuisine": "Cafe", "city": "Vienna", "lat": 48.2085, "lon": 16.366, "address": "Kohlmarkt 14, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["sweet", "mild", "creamy"], "food_type": ["dessert", "soup"], "diet": ["vegetarian"], "vibe": ["cafe", "romantic"], "use_case": ["date", "study cafe", "quick lunch"], "opening_hours": "Mo-Sa 10:00-18:00", "rating": 4.3, "review_count": 1234, "phone": "+43 1 535 17 17", "website": "https://demel.at", "source": "OSM", "id": 57}, {"name": "Caf\u00e9 Central", "cuisine": "Cafe", "city": "Vienna", "lat": 48.2105, "lon": 16.3665, "address": "Herrengasse 14, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["sweet", "mild", "creamy"], "food_type": ["dessert", "soup"], "diet": ["vegetarian"], "vibe": ["cafe", "romantic"], "use_case": ["date", "study cafe", "quick lunch"], "opening_hours": "Mo-Su 07:30-22:00", "rating": 4.2, "review_count": 2345, "phone": "+43 1 533 37 63", "website": "https://palaisevents.at/central", "source": "OSM", "id": 58}, {"name": "Caf\u00e9 Sacher", "cuisine": "Cafe", "city": "Vienna", "lat": 48.2045, "lon": 16.369, "address": "Philharmoniker Stra\u00dfe 4, 1010 Wien", "price_level": "\u20ac\u20ac\u20ac", "taste_tags": ["sweet", "mild", "creamy"], "food_type": ["dessert", "soup"], "diet": ["vegetarian"], "vibe": ["cafe", "romantic"], "use_case": ["date", "study cafe"], "opening_hours": "Mo-Su 08:00-22:00", "rating": 4.1, "review_count": 1890, "phone": "+43 1 514 56 0", "website": "https://sacher.com/wien", "source": "OSM", "id": 59}, {"name": "Aida", "cuisine": "Cafe", "city": "Vienna", "lat": 48.201, "lon": 16.37, "address": "K\u00e4rntner Stra\u00dfe 25, 1010 Wien", "price_level": "\u20ac", "taste_tags": ["sweet", "mild", "creamy"], "food_type": ["dessert"], "diet": ["vegetarian"], "vibe": ["cafe", "casual"], "use_case": ["study cafe", "quick lunch", "cheap eats"], "opening_hours": "Mo-Su 08:00-20:00", "rating": 3.8, "review_count": 567, "phone": "+43 1 512 99 00", "website": "https://aida.at", "source": "OSM", "id": 60}, {"name": "Caf\u00e9 Hawelka", "cuisine": "Cafe", "city": "Vienna", "lat": 48.208, "lon": 16.37, "address": "Dorotheergasse 6, 1010 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["sweet", "mild", "creamy"], "food_type": ["dessert", "soup"], "diet": ["vegetarian"], "vibe": ["cafe", "romantic"], "use_case": ["date", "study cafe"], "opening_hours": "Mo-Sa 08:00-23:00", "rating": 4.3, "review_count": 678, "phone": "+43 1 512 82 30", "website": "https://hawelka.at", "source": "OSM", "id": 61}, {"name": "Caf\u00e9 Phil", "cuisine": "Cafe", "city": "Vienna", "lat": 48.198, "lon": 16.354, "address": "Gumpendorfer Stra\u00dfe 10, 1060 Wien", "price_level": "\u20ac", "taste_tags": ["sweet", "mild", "creamy"], "food_type": ["dessert", "soup"], "diet": ["vegetarian"], "vibe": ["cafe", "casual"], "use_case": ["study cafe", "quick lunch", "cheap eats"], "opening_hours": "Mo-Su 09:00-23:00", "rating": 4.4, "review_count": 567, "phone": "+43 1 585 82 80", "website": "https://cafephil.at", "source": "OSM", "id": 62}, {"name": "Caf\u00e9 Kafka", "cuisine": "Cafe", "city": "Vienna", "lat": 48.205, "lon": 16.355, "address": "Capistrangasse 8, 1060 Wien", "price_level": "\u20ac", "taste_tags": ["sweet", "mild", "creamy"], "food_type": ["dessert", "soup"], "diet": ["vegetarian"], "vibe": ["cafe", "casual"], "use_case": ["study cafe", "quick lunch", "late-night"], "opening_hours": "Mo-Su 10:00-01:00", "rating": 4.2, "review_count": 423, "phone": "+43 1 586 22 33", "website": "https://cafekafka.at", "source": "OSM", "id": 63}, {"name": "Kipferl", "cuisine": "Cafe", "city": "Vienna", "lat": 48.208, "lon": 16.375, "address": "K\u00e4rntner Stra\u00dfe 18, 1010 Wien", "price_level": "\u20ac", "taste_tags": ["sweet", "mild", "creamy"], "food_type": ["dessert", "soup"], "diet": ["vegetarian"], "vibe": ["cafe", "casual"], "use_case": ["study cafe", "quick lunch", "cheap eats"], "opening_hours": "Mo-Sa 08:00-18:00", "rating": 4.3, "review_count": 312, "phone": "+43 1 533 44 55", "website": "https://kipferl.at", "source": "OSM", "id": 64}, {"name": "Caf\u00e9 Europa", "cuisine": "Cafe", "city": "Vienna", "lat": 48.198, "lon": 16.355, "address": "Zollergasse 8, 1070 Wien", "price_level": "\u20ac", "taste_tags": ["sweet", "mild", "creamy"], "food_type": ["dessert", "soup"], "diet": ["vegetarian"], "vibe": ["cafe", "casual"], "use_case": ["study cafe", "quick lunch", "late-night"], "opening_hours": "Mo-Su 09:00-01:00", "rating": 4.2, "review_count": 456, "phone": "+43 1 526 33 22", "website": "https://cafeeuropa.at", "source": "OSM", "id": 65}, {"name": "Caf\u00e9 Leopold", "cuisine": "Cafe", "city": "Vienna", "lat": 48.2, "lon": 16.36, "address": "Museumsplatz 1, 1070 Wien", "price_level": "\u20ac\u20ac", "taste_tags": ["sweet", "mild", "creamy"], "food_type": ["dessert", "soup"], "diet": ["vegetarian"], "vibe": ["cafe", "casual"], "use_case": ["study cafe", "date", "quick lunch"], "opening_hours": "Mo-Su 10:00-00:00", "rating": 4.1, "review_count": 378, "phone": "+43 1 523 67 32", "website": "https://cafeleopold.at", "source": "OSM", "id": 66}, {"name": "Eis Greissler", "cuisine": "Ice Cream", "city": "Vienna", "lat": 48.208, "lon": 16.373, "address": "Rotenturmstra\u00dfe 14, 1010 Wien", "price_level": "\u20ac", "taste_tags": ["sweet", "mild", "creamy"], "food_type": ["dessert"], "diet": ["vegetarian"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "date"], "opening_hours": "Mo-Su 10:00-22:00", "rating": 4.6, "review_count": 445, "phone": "+43 1 533 44 55", "website": "https://eis-greissler.at", "source": "OSM", "id": 67}, {"name": "Veganista", "cuisine": "Ice Cream", "city": "Vienna", "lat": 48.198, "lon": 16.355, "address": "Neubaugasse 36, 1070 Wien", "price_level": "\u20ac", "taste_tags": ["sweet", "mild", "creamy"], "food_type": ["dessert"], "diet": ["vegetarian", "vegan"], "vibe": ["casual", "cheap eats"], "use_case": ["quick lunch", "cheap eats", "date"], "opening_hours": "Mo-Su 12:00-21:00", "rating": 4.5, "review_count": 312, "phone": "+43 1 526 33 44", "website": "https://veganista.at", "source": "OSM", "id": 68}];
 const PRICE_MAP = {"€":1, "€€":2, "€€€":3};
 
-// ===== UTILS =====
 function haversine(lat1, lon1, lat2, lon2) {
   const R=6371, p1=lat1*Math.PI/180, p2=lat2*Math.PI/180;
   const dp=(lat2-lat1)*Math.PI/180, dl=(lon2-lon1)*Math.PI/180;
@@ -171,7 +148,7 @@ function parseQuery(query) {
     "Ice Cream":["ice cream","gelato"],
     "International":["international","fusion"]
   };
-  for(const[c,kws] of Object.entries(cuisineMap)){for(const kw of kws)if(q.includes(kw)){f.cuisine=c;break;}if(f.cuisine)break;}
+  for(const c in cuisineMap){for(const kw of cuisineMap[c])if(q.includes(kw)){f.cuisine=c;break;}if(f.cuisine)break;}
 
   const tasteMap={
     "spicy":["spicy","scharf","hot","chili","pepper","fire"],
@@ -184,7 +161,7 @@ function parseQuery(query) {
     "soup":["soup","broth","pho","ramen"],
     "curry":["curry","masala","biryani"]
   };
-  for(const[t,kws] of Object.entries(tasteMap)){for(const kw of kws)if(q.includes(kw)){if(!f.taste_tags.includes(t))f.taste_tags.push(t);break;}}
+  for(const t in tasteMap){for(const kw of tasteMap[t])if(q.includes(kw)){if(!f.taste_tags.includes(t))f.taste_tags.push(t);break;}}
 
   const foodMap={
     "rice":["rice","reis","pilaf","biryani"],
@@ -194,10 +171,10 @@ function parseQuery(query) {
     "dessert":["dessert","sweet","cake","ice cream","pastry"],
     "naan":["naan","bread","roti"]
   };
-  for(const[ft,kws] of Object.entries(foodMap)){for(const kw of kws)if(q.includes(kw)){if(!f.food_type.includes(ft))f.food_type.push(ft);break;}}
+  for(const ft in foodMap){for(const kw of foodMap[ft])if(q.includes(kw)){if(!f.food_type.includes(ft))f.food_type.push(ft);break;}}
 
   const dietMap={"halal":["halal","muslim"],"vegetarian":["vegetarian","veggie","meat-free"],"vegan":["vegan","plant-based","dairy-free"]};
-  for(const[d,kws] of Object.entries(dietMap)){for(const kw of kws)if(q.includes(kw)){if(!f.diet.includes(d))f.diet.push(d);break;}}
+  for(const d in dietMap){for(const kw of dietMap[d])if(q.includes(kw)){if(!f.diet.includes(d))f.diet.push(d);break;}}
 
   const vibeMap={
     "cafe":["cafe","coffee","cozy","warm"],
@@ -206,7 +183,7 @@ function parseQuery(query) {
     "family":["family","kid-friendly","children","kids"],
     "cheap eats":["cheap","budget","affordable"]
   };
-  for(const[v,kws] of Object.entries(vibeMap)){for(const kw of kws)if(q.includes(kw)){if(!f.vibe.includes(v))f.vibe.push(v);break;}}
+  for(const v in vibeMap){for(const kw of vibeMap[v])if(q.includes(kw)){if(!f.vibe.includes(v))f.vibe.push(v);break;}}
 
   const useMap={
     "date":["date","romantic","anniversary","special occasion"],
@@ -217,7 +194,7 @@ function parseQuery(query) {
     "takeaway":["takeaway","take-out","to-go","delivery"],
     "late-night":["late-night","late night","open late","midnight"]
   };
-  for(const[u,kws] of Object.entries(useMap)){for(const kw of kws)if(q.includes(kw)){if(!f.use_case.includes(u))f.use_case.push(u);break;}}
+  for(const u in useMap){for(const kw of useMap[u])if(q.includes(kw)){if(!f.use_case.includes(u))f.use_case.push(u);break;}}
 
   if(q.includes("under €15")||q.includes("cheap")||q.includes("budget")||q.includes("student"))f.max_price="€";
   else if(q.includes("under €25")||q.includes("moderate")||q.includes("mid-range"))f.max_price="€€";
@@ -305,7 +282,7 @@ function processQuery(query, userLat, userLon) {
   return {results:top,filters,total:scored.filter(s=>s.score>0).length};
 }
 
-// ===== UI =====
+// ===== UI STATE =====
 const chatArea=document.getElementById('chatArea');
 const chatInput=document.getElementById('chatInput');
 const sendBtn=document.getElementById('sendBtn');
@@ -337,8 +314,68 @@ const categories=[
   {label:"📚 Study",filter:"study cafe"},
 ];
 
-// Init map
+// ===== INIT =====
+function init() {
+  // Category bar
+  const catBar=document.getElementById('catBar');
+  for(const c of categories){
+    const btn=document.createElement('button');
+    btn.textContent=c.label;
+    btn.dataset.filter=c.filter;
+    btn.onclick=function(){
+      this.classList.toggle('on');
+      const filter=this.dataset.filter;
+      const q=filter==='spicy'?'spicy food near me':
+              filter==='vegetarian'?'vegetarian restaurant':
+              filter==='cafe'?'cozy cafe with wifi':
+              filter==='noodles'?'noodle soup restaurant':
+              filter==='curry'?'curry restaurant':
+              filter==='sweet'?'sweet dessert place':
+              filter==='late-night'?'late night food open now':
+              filter==='date'?'romantic restaurant for date':
+              filter==='cheap eats'?'cheap food under €15':
+              'quiet study cafe with wifi';
+      chatInput.value=q;
+    };
+    catBar.appendChild(btn);
+  }
+
+  // Quick filters
+  const qFilters=document.getElementById('qFilters');
+  for(const q of quickQueries){
+    const btn=document.createElement('button');
+    btn.textContent=q.length>28?q.slice(0,28)+'...':q;
+    btn.onclick=function(){ chatInput.value=q; };
+    qFilters.appendChild(btn);
+  }
+
+  // Welcome screen
+  chatArea.innerHTML=`<div class="welcome">
+    <h2>👋 Welcome to What's Good Vienna?</h2>
+    <p>Ask me anything about restaurants in Vienna. Search by cuisine, taste, vibe, budget, or use case.</p>
+    <div class="examples" id="examples"></div>
+  </div>`;
+
+  const examples=document.getElementById('examples');
+  for(const q of quickQueries.slice(0,5)){
+    const btn=document.createElement('button');
+    btn.innerHTML='<span style="font-size:1.1rem">💬</span> '+q;
+    btn.onclick=function(){ chatInput.value=q; };
+    examples.appendChild(btn);
+  }
+
+  // Send button
+  sendBtn.onclick=function(){ handleSend(); };
+
+  // Enter key
+  chatInput.onkeydown=function(e){ if(e.key==='Enter'){ e.preventDefault(); handleSend(); } };
+
+  // Init map
+  initMap();
+}
+
 function initMap() {
+  if(!document.getElementById('map'))return;
   mapInstance=L.map('map').setView([userLocation.lat,userLocation.lon],13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
     attribution:'© OpenStreetMap'
@@ -348,62 +385,24 @@ function initMap() {
 }
 
 function updateMap() {
-  Object.values(markers).forEach(m=>mapInstance.removeLayer(m));
+  if(!mapInstance)return;
+  for(const id in markers){ mapInstance.removeLayer(markers[id]); }
   markers={};
 
-  lastResults.forEach(r=>{
+  for(const r of lastResults){
     const isActive=r.id===activeId;
     const marker=L.circleMarker([r.lat,r.lon],{
-      radius:isActive?10:6, fillColor:isActive?'#dc2626':'#64748b',
+      radius:isActive?10:6, fillColor:isActive?'#dc2626':'#64758b',
       color:'#fff', weight:2, fillOpacity:0.9
     }).addTo(mapInstance);
     marker.bindPopup('<strong>'+r.name+'</strong><br>'+r.cuisine+' | '+r.price_level+' | ★ '+r.rating);
     markers[r.id]=marker;
-  });
+  }
 
   if(lastResults.length>0){
     const group=new L.featureGroup(Object.values(markers));
     mapInstance.fitBounds(group.getBounds().pad(0.1));
   }
-}
-
-function createCard(r, isActive) {
-  const div=document.createElement('div');
-  div.className='restaurant-card'+(isActive?' active':'');
-  div.innerHTML=`
-    <div class="match-score">Match: ${Math.round(r.score)}</div>
-    <div class="card-header">
-      <h3>${r.name}</h3>
-      <div class="rating">★ ${r.rating}</div>
-    </div>
-    <div class="meta-row">
-      <span class="pill-cuisine">${r.cuisine}</span>
-      <span class="pill-price">${r.price_level}</span>
-      <span class="pill-dist">📍 ${r.dist.toFixed(1)} km</span>
-      ${r.taste_tags.slice(0,2).map(t=>'<span class="pill-taste">'+t+'</span>').join('')}
-      ${r.diet.slice(0,1).map(d=>'<span class="pill-diet">'+d+'</span>').join('')}
-      ${r.vibe.slice(0,1).map(v=>'<span class="pill-vibe">'+v+'</span>').join('')}
-      ${r.use_case.slice(0,1).map(u=>'<span class="pill-use">'+u+'</span>').join('')}
-    </div>
-    <div class="explanation">${r.explanation}</div>
-    <div class="details">
-      <span>📍 ${r.address}</span>
-      <span>⏰ ${r.opening_hours}</span>
-      <span>📞 ${r.phone}</span>
-      <span><a href="${r.website}" target="_blank">🔗 Website</a></span>
-    </div>
-  `;
-  div.onclick=()=>{activeId=r.id; updateMap(); renderCards();};
-  return div;
-}
-
-function renderCards() {
-  const existing=document.querySelectorAll('.restaurant-card');
-  existing.forEach((el,i)=>{
-    if(lastResults[i]) {
-      el.className='restaurant-card'+(lastResults[i].id===activeId?' active':'');
-    }
-  });
 }
 
 function addMessage(type, content) {
@@ -438,74 +437,59 @@ function handleSend() {
     activeId=results[0]?.id||null;
 
     let html='<div style="margin-bottom:8px;font-weight:700;color:#f8fafc;">Found '+total+' matches — top '+results.length+':</div>';
-    results.forEach(r=>{
-      html+=createCard(r, r.id===activeId).outerHTML;
-    });
+
+    for(const r of results){
+      html+='<div class="restaurant-card" data-id="'+r.id+'">';
+      html+='<div class="match-score">Match: '+Math.round(r.score)+'</div>';
+      html+='<div class="card-header"><h3>'+r.name+'</h3><div class="rating">★ '+r.rating+'</div></div>';
+      html+='<div class="meta-row">';
+      html+='<span class="pill-c">'+r.cuisine+'</span>';
+      html+='<span class="pill-p">'+r.price_level+'</span>';
+      html+='<span class="pill-d">📍 '+r.dist.toFixed(1)+' km</span>';
+      for(const t of r.taste_tags.slice(0,2)) html+='<span class="pill-t">'+t+'</span>';
+      for(const d of r.diet.slice(0,1)) html+='<span class="pill-di">'+d+'</span>';
+      for(const v of r.vibe.slice(0,1)) html+='<span class="pill-v">'+v+'</span>';
+      for(const u of r.use_case.slice(0,1)) html+='<span class="pill-u">'+u+'</span>';
+      html+='</div>';
+      html+='<div class="explanation">'+r.explanation+'</div>';
+      html+='<div class="details">';
+      html+='<span>📍 '+r.address+'</span>';
+      html+='<span>⏰ '+r.opening_hours+'</span>';
+      html+='<span>📞 '+r.phone+'</span>';
+      html+='<span><a href="'+r.website+'" target="_blank">🔗 Website</a></span>';
+      html+='</div></div>';
+    }
 
     html+='<div class="filter-badges">';
     if(filters.cuisine)html+='<span class="highlight">Cuisine: '+filters.cuisine+'</span>';
-    filters.taste_tags.forEach(t=>{html+='<span>Taste: '+t+'</span>';});
-    filters.food_type.forEach(ft=>{html+='<span>Food: '+ft+'</span>';});
-    filters.diet.forEach(d=>{html+='<span>Diet: '+d+'</span>';});
-    filters.vibe.forEach(v=>{html+='<span>Vibe: '+v+'</span>';});
-    filters.use_case.forEach(u=>{html+='<span>For: '+u+'</span>';});
+    for(const t of filters.taste_tags)html+='<span>Taste: '+t+'</span>';
+    for(const ft of filters.food_type)html+='<span>Food: '+ft+'</span>';
+    for(const d of filters.diet)html+='<span>Diet: '+d+'</span>';
+    for(const v of filters.vibe)html+='<span>Vibe: '+v+'</span>';
+    for(const u of filters.use_case)html+='<span>For: '+u+'</span>';
     if(filters.max_price)html+='<span>Max: '+filters.max_price+'</span>';
     if(filters.min_price)html+='<span>Min: '+filters.min_price+'</span>';
     html+='</div>';
 
     addMessage('bot', html);
+
+    // Add click handlers to cards
+    for(const card of chatArea.querySelectorAll('.restaurant-card')){
+      card.onclick=function(){
+        const id=parseInt(this.dataset.id);
+        activeId=id;
+        for(const c of chatArea.querySelectorAll('.restaurant-card')) c.classList.remove('active');
+        this.classList.add('active');
+        updateMap();
+      };
+    }
+
     updateMap();
-  },600);
+  }, 600);
 }
 
-// Init UI
-document.getElementById('categoryBar').innerHTML=categories.map(c=>`<button data-filter="${c.filter}">${c.label}</button>`).join('');
-document.getElementById('quickFilters').innerHTML=quickQueries.map(q=>`<button>${q.length>28?q.slice(0,28)+'...':q}</button>`).join('');
-
-// Welcome screen
-chatArea.innerHTML=`<div class="welcome">
-  <h2>👋 Welcome to What's Good Vienna?</h2>
-  <p>Ask me anything about restaurants in Vienna. Search by cuisine, taste, vibe, budget, or use case.</p>
-  <div class="examples">
-    ${quickQueries.slice(0,5).map(q=>`<button><span style="font-size:1.1rem">💬</span> ${q}</button>`).join('')}
-  </div>
-</div>`;
-
-// Event listeners
-sendBtn.onclick=handleSend;
-chatInput.onkeypress=e=>{if(e.key==='Enter')handleSend();};
-
-document.getElementById('categoryBar').onclick=e=>{
-  if(e.target.tagName==='BUTTON'){
-    const filter=e.target.dataset.filter;
-    const q=filter==='spicy'?'spicy food near me':
-            filter==='vegetarian'?'vegetarian restaurant':
-            filter==='cafe'?'cozy cafe with wifi':
-            filter==='noodles'?'noodle soup restaurant':
-            filter==='curry'?'curry restaurant':
-            filter==='sweet'?'sweet dessert place':
-            filter==='late-night'?'late night food open now':
-            filter==='date'?'romantic restaurant for date':
-            filter==='cheap eats'?'cheap food under €15':
-            'quiet study cafe with wifi';
-    chatInput.value=q;
-    e.target.classList.toggle('on');
-  }
-};
-
-document.getElementById('quickFilters').onclick=e=>{
-  if(e.target.tagName==='BUTTON')chatInput.value=e.target.textContent;
-};
-
-chatArea.onclick=e=>{
-  const btn=e.target.closest('button');
-  if(btn&&btn.parentElement.classList.contains('examples')){
-    chatInput.value=btn.textContent.replace('💬 ','');
-  }
-};
-
-// Init map when Leaflet loads
-window.onload=initMap;
+// Start
+window.addEventListener('load', init);
 </script>
 </body>
 </html>
