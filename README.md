@@ -27,8 +27,8 @@ An AI-powered chatbot that helps you find the perfect restaurant in Vienna. Inst
 Just open `index.html` in a browser. It works entirely client-side with embedded data.
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/whats-good-vienna.git
-cd whats-good-vienna
+git clone https://github.com/YOUR_USERNAME/What-s-Good-Vienna-.git
+cd What-s-Good-Vienna-
 # Open index.html in your browser
 ```
 
