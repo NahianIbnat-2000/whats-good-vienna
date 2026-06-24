@@ -135,7 +135,16 @@
       if (!r.ok) {
         out.parentElement.classList.add("error");
         out.previousSibling.textContent = "😬";
-        out.innerHTML = "The kitchen sent back an error (HTTP " + r.status + "). 🔥 Check the server logs.";
+        if (r.status === 405) {
+          out.innerHTML = "Got HTTP 405 (Method Not Allowed). 🍳 The POST is reaching the wrong place. "
+            + "This usually means the page is served from a static host (like GitHub Pages) that can't "
+            + "run the backend. Set <code>API</code> at the top of the script to your FastAPI/Render URL, "
+            + "or open the app at the backend's <b>/app</b> route.";
+        } else if (r.status === 429) {
+          out.innerHTML = "Whoa, slow down a sec. 🛑 You've hit the rate limit. Try again in a minute.";
+        } else {
+          out.innerHTML = "The kitchen sent back an error (HTTP " + r.status + "). 🔥 Check the server logs.";
+        }
         return;
       }
       const data = await r.json();

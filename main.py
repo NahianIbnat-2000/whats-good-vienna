@@ -203,15 +203,35 @@ async def search_places(filters: dict) -> list[dict]:
     return [_normalise(p) for p in places]
 
 
+def _confidence(rating_count: int, rating: float | None) -> str:
+    """
+    A trust signal, not a quality signal. Borrows the calibration logic from the
+    knowledge-distillation lab: a 4.9 from 11 reviews is a high-variance estimate,
+    a 4.4 from 4,000 is a settled one. Below the low threshold the bot should hedge
+    rather than assert, the same "don't deploy a confident answer below threshold"
+    rule from the Scenario B coverage table.
+    """
+    if rating is None or rating_count == 0:
+        return "unrated"
+    if rating_count >= 500:
+        return "high"
+    if rating_count >= 80:
+        return "medium"
+    return "low"
+
+
 def _normalise(p: dict) -> dict:
     reviews = p.get("reviews", [])
     top_review = ""
     if reviews:
         top_review = reviews[0].get("text", {}).get("text", "")[:240]
+    rating = p.get("rating")
+    rating_count = p.get("userRatingCount", 0)
     return {
         "name": p.get("displayName", {}).get("text", "Unknown"),
-        "rating": p.get("rating"),
-        "rating_count": p.get("userRatingCount", 0),
+        "rating": rating,
+        "rating_count": rating_count,
+        "confidence": _confidence(rating_count, rating),
         "price": PRICE_LABELS.get(p.get("priceLevel", ""), "price not listed"),
         "address": p.get("formattedAddress", ""),
         "open_now": p.get("currentOpeningHours", {}).get("openNow"),
@@ -222,6 +242,8 @@ def _normalise(p: dict) -> dict:
 
 def _rank(places: list[dict]) -> list[dict]:
     # Sort best-to-worst by rating, breaking ties by how many ratings (trust).
+    # A Bayesian shrinkage toward the mean would be more correct, but tie-break
+    # on count is a cheap stand-in that avoids ranking a 4.9-from-9 above a 4.6-from-3000.
     return sorted(places, key=lambda x: (x.get("rating") or 0, x.get("rating_count") or 0),
                   reverse=True)
 
@@ -232,7 +254,17 @@ def _rank(places: list[dict]) -> list[dict]:
 ANSWER_SYSTEM = """You are a friendly Vienna food guide. You are given the user's request and a
 ranked list of restaurants (already sorted best rating first). Recommend the top few that fit.
 For each: name, rating with count, price band, one line on why, the address, and the maps link
-for directions. Be concise. If the list is empty, say so plainly and suggest loosening a filter.
+for directions. Be concise and warm, a little playful is fine.
+
+Use the "confidence" field honestly:
+- "high"/"medium": state the rating plainly.
+- "low": the rating rests on few reviews, so add a short hedge like "(only a handful of ratings)".
+- "unrated": say it has no ratings yet.
+
+Important: traits like halal, spicy level, or specific cuisine are inferred from names and
+reviews, not verified facts. When you mention them, phrase as "looks halal based on reviews,
+worth confirming" rather than stating them as certain. Never present an inferred trait as
+guaranteed. If the list is empty, say so plainly and suggest loosening a filter.
 Do not invent places or details not in the data."""
 
 
@@ -260,7 +292,11 @@ def _plain_answer(places: list[dict]) -> str:
         return "No matches found. Try loosening the price or cuisine filter."
     lines = []
     for p in places[:5]:
-        r = f"{p['rating']}\u2605 ({p['rating_count']})" if p["rating"] else "no rating"
+        if p["rating"]:
+            hedge = " (few ratings, take with a grain of salt)" if p.get("confidence") == "low" else ""
+            r = f"{p['rating']}\u2605 ({p['rating_count']}){hedge}"
+        else:
+            r = "no ratings yet"
         lines.append(f"- {p['name']} - {r} - {p['price']}\n  {p['address']}\n  {p['maps_url']}")
     return "Here are the top matches:\n\n" + "\n".join(lines)
 
@@ -322,7 +358,16 @@ def _mock_places(filters: dict) -> list[dict]:
          "address": "Liechtensteinstrasse 10, 1090 Wien", "open_now": False,
          "maps_url": "https://maps.google.com/?cid=3",
          "top_review": "Pay-as-you-wish Pakistani buffet, reliably spicy and cheap."},
+        # Deliberately low rating count to exercise the confidence hedge.
+        {"name": "Dhaka Tang (new)", "rating": 4.9, "rating_count": 11,
+         "price": PRICE_LABELS["PRICE_LEVEL_INEXPENSIVE"],
+         "address": "Quellenstrasse 12, 1100 Wien", "open_now": True,
+         "maps_url": "https://maps.google.com/?cid=4",
+         "top_review": "Rare Bangladeshi spot, spicy and authentic, just opened."},
     ]
+    # Compute the confidence tier the same way live results get it.
+    for s in sample:
+        s["confidence"] = _confidence(s["rating_count"], s["rating"])
     if filters.get("min_rating"):
         sample = [s for s in sample if s["rating"] >= filters["min_rating"]]
     return sample
