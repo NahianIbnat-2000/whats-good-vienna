@@ -13,17 +13,28 @@ loop before turning on billing.
 """
 
 import os
+import re
 import json
+import time
 import httpx
-from fastapi import FastAPI
+from collections import deque, defaultdict
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 # ---- config ----
 GOOGLE_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = "claude-sonnet-4-6"
+
+# --- guardrail config (override via env on Render) ---
+# Comma-separated list of allowed frontend origins. "*" only for local dev.
+ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
+# Max requests per IP per rolling window.
+RATE_LIMIT = int(os.environ.get("RATE_LIMIT", "20"))
+RATE_WINDOW = int(os.environ.get("RATE_WINDOW_SECONDS", "60"))
+MAX_MESSAGE_LEN = 300
 
 # Vienna city centre, used as the default location bias.
 VIENNA_LAT, VIENNA_LNG = 48.2082, 16.3738
@@ -45,17 +56,58 @@ FIELD_MASK = ",".join([
     "places.primaryType",
 ])
 
-app = FastAPI(title="Vienna Eats")
+app = FastAPI(title="What's Good Vienna")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # tighten to your frontend domain in production
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,   # set ALLOWED_ORIGINS env to your domain in prod
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
+
+# Simple in-memory per-IP rate limiter. Fine for a single Render instance;
+# for multiple instances you'd move this to Redis.
+_hits: dict[str, deque] = defaultdict(deque)
+
+
+def _rate_limited(ip: str) -> bool:
+    now = time.time()
+    dq = _hits[ip]
+    while dq and dq[0] < now - RATE_WINDOW:
+        dq.popleft()
+    if len(dq) >= RATE_LIMIT:
+        return True
+    dq.append(now)
+    return False
+
+
+# Cheap pre-filter so the endpoint isn't used as a free general-purpose chatbot.
+# Blocks obvious injection phrases and requires the message to look food-related.
+_INJECTION = re.compile(
+    r"ignore (the |your |all )?(previous |above )?(instruction|prompt)|"
+    r"system prompt|you are now|act as|disregard",
+    re.I,
+)
+_FOOD_HINT = re.compile(
+    r"eat|food|restaurant|cafe|coffee|drink|bar|meal|lunch|dinner|breakfast|brunch|"
+    r"spicy|mild|sweet|halal|vegan|vegetarian|cuisine|dish|hotpot|sushi|pizza|kebab|"
+    r"curry|noodle|dessert|bakery|hungry|cheap|budget|price|rating|near|open|"
+    r"indian|bangladeshi|georgian|thai|chinese|italian|turkish|arab|asian|wine|beer",
+    re.I,
 )
 
 
 class ChatRequest(BaseModel):
     message: str
+
+    @field_validator("message")
+    @classmethod
+    def _check(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Message is empty.")
+        if len(v) > MAX_MESSAGE_LEN:
+            raise ValueError(f"Message too long (max {MAX_MESSAGE_LEN} characters).")
+        return v
 
 
 # Map Google's price enum to euro bands so the model can talk about them.
@@ -226,7 +278,25 @@ def ui():
 
 
 @app.post("/chat")
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, request: Request):
+    # 1. rate limit per IP to protect the API bill
+    ip = request.client.host if request.client else "unknown"
+    if _rate_limited(ip):
+        raise HTTPException(status_code=429,
+                            detail="Slow down a little. Try again in a minute.")
+
+    # 2. block obvious prompt-injection attempts
+    if _INJECTION.search(req.message):
+        return {"answer": "I only help with finding places to eat and drink in Vienna. "
+                          "Ask me about food, cuisines, prices, or areas.",
+                "filters": {}, "results": []}
+
+    # 3. keep it on-topic so it isn't used as a free general chatbot
+    if not _FOOD_HINT.search(req.message):
+        return {"answer": "I'm your Vienna food guide. Tell me a taste, cuisine, price, "
+                          "or area and I'll find spots. Try 'spicy halal under 15 euro'.",
+                "filters": {}, "results": []}
+
     filters = await parse_query(req.message)
     places = _rank(await search_places(filters))
     answer = await write_answer(req.message, places)

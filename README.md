@@ -1,4 +1,4 @@
-# Vienna Eats
+# What's Good Vienna
 
 A restaurant recommendation chatbot for Vienna. Ask in plain language
 ("spicy halal under €15 near me", "best hotpot", "Georgian food open now")
@@ -39,6 +39,23 @@ Open http://localhost:8000/app
 - The free monthly credit covers light use. A public app can exceed it.
 - In Cloud Console set a **quota cap** and a **budget alert** so you can't be surprised.
 - The `FIELD_MASK` in `main.py` controls which fields you pay for. Keep it tight.
+
+## Guardrails (added)
+
+The `/chat` endpoint has basic protection so it can't be abused or run up your bill:
+
+- **Rate limit:** per-IP, default 20 requests / 60s. Tune with `RATE_LIMIT` and
+  `RATE_WINDOW_SECONDS`. In-memory, so it resets on restart and is per-instance.
+  For multiple Render instances, move the counter to Redis.
+- **Input cap:** messages over 300 characters are rejected (422) before any paid call.
+- **Topic guard:** messages with no food-related word get a polite redirect instead
+  of hitting the LLM or Places API, so the endpoint isn't a free general chatbot.
+- **Injection filter:** common "ignore your instructions" phrasings are refused.
+- **CORS:** set `ALLOWED_ORIGINS` to your domain in production (defaults to `*` for
+  local dev only).
+
+These run *before* the paid Anthropic and Google calls, so blocked requests cost nothing.
+Still set a Google Cloud budget cap as a final backstop.
 
 ## Known limits (read before you scale this)
 

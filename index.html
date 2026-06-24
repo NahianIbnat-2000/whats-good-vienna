@@ -3,87 +3,159 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vienna Eats</title>
+<title>What's Good Vienna 🍽️</title>
 <style>
-  :root { --bg:#faf8f5; --card:#fff; --ink:#1c1a17; --muted:#6b655c; --accent:#c2410c; --line:#e8e2d9; }
+  :root {
+    --bg:#fff7ec; --card:#ffffff; --ink:#2b1d12; --muted:#8a7a66;
+    --accent:#e8590c; --accent2:#f08c00; --line:#f3e3cf;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:'Georgia',serif; background:var(--bg); color:var(--ink); }
-  header { padding:24px 20px 12px; border-bottom:1px solid var(--line); }
-  h1 { margin:0; font-size:24px; letter-spacing:-.3px; }
-  header p { margin:4px 0 0; color:var(--muted); font-size:14px; font-family:system-ui,sans-serif; }
-  #chat { max-width:720px; margin:0 auto; padding:20px; }
-  .msg { margin:14px 0; line-height:1.5; }
-  .user { text-align:right; }
-  .user span { background:var(--accent); color:#fff; padding:10px 14px; border-radius:14px 14px 2px 14px; display:inline-block; font-family:system-ui,sans-serif; font-size:15px; }
-  .bot span { background:var(--card); border:1px solid var(--line); padding:12px 16px; border-radius:14px 14px 14px 2px; display:inline-block; white-space:pre-wrap; font-size:15px; max-width:90%; }
-  .bot a { color:var(--accent); }
-  #bar { position:sticky; bottom:0; background:var(--bg); padding:14px 20px; border-top:1px solid var(--line); }
+  body {
+    margin:0; color:var(--ink);
+    font-family:'Trebuchet MS','Segoe UI',system-ui,sans-serif;
+    background:
+      radial-gradient(circle at 12% 18%, #ffe8c9 0 1px, transparent 1px),
+      radial-gradient(circle at 78% 60%, #ffe0cf 0 1px, transparent 1px),
+      var(--bg);
+    background-size:120px 120px, 90px 90px;
+  }
+  header {
+    padding:22px 20px 14px; text-align:center;
+    background:linear-gradient(180deg,#fff0d8,transparent);
+    border-bottom:2px dashed var(--line);
+  }
+  h1 { margin:0; font-size:28px; letter-spacing:-.5px; }
+  header p { margin:8px auto 0; max-width:640px; color:var(--muted); font-size:14px; line-height:1.5; }
+  .chips { margin-top:12px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .chip {
+    background:#fff; border:1.5px solid var(--line); border-radius:20px;
+    padding:6px 12px; font-size:13px; cursor:pointer; transition:.15s; color:var(--ink);
+  }
+  .chip:hover { border-color:var(--accent); background:#fff3e6; transform:translateY(-1px); }
+  #chat { max-width:720px; margin:0 auto; padding:20px 20px 12px; }
+  .msg { margin:14px 0; line-height:1.55; display:flex; gap:8px; align-items:flex-end; }
+  .msg.user { flex-direction:row-reverse; }
+  .avatar { font-size:22px; flex-shrink:0; }
+  .user span {
+    background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff;
+    padding:10px 14px; border-radius:16px 16px 4px 16px; display:inline-block; font-size:15px;
+    box-shadow:0 2px 6px rgba(232,89,12,.25);
+  }
+  .bot span {
+    background:var(--card); border:1.5px solid var(--line);
+    padding:12px 16px; border-radius:16px 16px 16px 4px; display:inline-block;
+    white-space:pre-wrap; font-size:15px; max-width:90%;
+    box-shadow:0 2px 8px rgba(0,0,0,.04);
+  }
+  .bot a { color:var(--accent); font-weight:bold; text-decoration:none; }
+  .bot a:hover { text-decoration:underline; }
+  .bot.error span { background:#fff0f0; border-color:#ffc9c9; }
+  #bar {
+    position:sticky; bottom:0; background:var(--bg);
+    padding:14px 20px; border-top:2px dashed var(--line);
+  }
   #form { max-width:720px; margin:0 auto; display:flex; gap:8px; }
-  #q { flex:1; padding:12px 14px; border:1px solid var(--line); border-radius:10px; font-size:15px; font-family:system-ui,sans-serif; }
-  #send { padding:12px 20px; background:var(--accent); color:#fff; border:none; border-radius:10px; font-size:15px; cursor:pointer; }
-  #send:disabled { opacity:.5; }
-  .hint { color:var(--muted); font-size:13px; font-family:system-ui,sans-serif; margin-top:6px; }
+  #q {
+    flex:1; padding:13px 16px; border:1.5px solid var(--line); border-radius:24px;
+    font-size:15px; outline:none; transition:.15s;
+  }
+  #q:focus { border-color:var(--accent); box-shadow:0 0 0 3px #ffe0cf; }
+  #send {
+    padding:13px 22px; background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#fff; border:none; border-radius:24px; font-size:15px; font-weight:bold; cursor:pointer;
+    box-shadow:0 2px 6px rgba(232,89,12,.3);
+  }
+  #send:disabled { opacity:.5; cursor:default; }
+  @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+  .bob { display:inline-block; animation:bob 1.4s ease-in-out infinite; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Vienna Eats</h1>
-  <p>Ask for food by taste, cuisine, price, or area. "spicy halal under €15 near me", "best hotpot", "Georgian wine bar".</p>
+  <h1><span class="bob">🍜</span> What's Good Vienna <span class="bob">🥘</span></h1>
+  <p>Hungry? 😋 Ask by taste, cuisine, price, or area — I'll find the tastiest spots.</p>
+  <div class="chips">
+    <span class="chip" data-q="best spicy halal food under €15">🌶️ spicy halal under €15</span>
+    <span class="chip" data-q="best hotpot near me">🍲 best hotpot</span>
+    <span class="chip" data-q="cozy Georgian wine bar">🍷 Georgian wine</span>
+    <span class="chip" data-q="sweet desserts and cafe open now">🍰 sweet cafe now</span>
+    <span class="chip" data-q="best Bangladeshi restaurant">🍛 Bangladeshi</span>
+  </div>
 </header>
 <div id="chat">
-  <div class="msg bot"><span>Hi! Tell me what you feel like eating and where in Vienna.</span></div>
+  <div class="msg bot"><span class="avatar">👨‍🍳</span><span>Hi there! 🍽️ Tell me what you're craving and where in Vienna, and I'll dig up the good stuff.</span></div>
 </div>
 <div id="bar">
   <div id="form">
-    <input id="q" placeholder="e.g. best spicy halal food under €15" autocomplete="off">
-    <button id="send">Ask</button>
+    <input id="q" placeholder="e.g. 🌶️ best spicy halal food under €15" autocomplete="off">
+    <button id="send">Ask 🍴</button>
   </div>
-  <div class="hint" id="hint"></div>
 </div>
 <script>
-  // Point this at your Render URL once deployed. Empty = same origin.
-  const API = "";
+  // ── CONFIG ──────────────────────────────────────────────
+  // When testing the HTML file alone (no backend), set this to your
+  // local server or Render URL. Empty "" = same origin (only works
+  // when FastAPI is serving this page at /app).
+  const API = "";  // e.g. "http://localhost:8000" or "https://whats-good-vienna.onrender.com"
+  // ────────────────────────────────────────────────────────
+
   const chat = document.getElementById("chat");
   const q = document.getElementById("q");
   const send = document.getElementById("send");
 
-  function add(role, text) {
+  function linkify(t){ return t.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">📍 map</a>'); }
+
+  function add(role, text, isError) {
     const d = document.createElement("div");
-    d.className = "msg " + role;
+    d.className = "msg " + role + (isError ? " error" : "");
+    const av = document.createElement("span");
+    av.className = "avatar";
+    av.textContent = role === "user" ? "🙋" : (isError ? "😬" : "👨‍🍳");
     const s = document.createElement("span");
-    // linkify maps URLs
-    s.innerHTML = text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">map</a>');
-    d.appendChild(s);
+    s.innerHTML = linkify(text);
+    d.appendChild(av); d.appendChild(s);
     chat.appendChild(d);
     window.scrollTo(0, document.body.scrollHeight);
+    return s;
   }
 
-  async function ask() {
-    const text = q.value.trim();
+  async function ask(preset) {
+    const text = (preset || q.value).trim();
     if (!text) return;
     add("user", text);
     q.value = "";
     send.disabled = true;
-    add("bot", "Looking…");
-    const placeholder = chat.lastChild;
+    const out = add("bot", "Sniffing out the good spots… 🐽🍳");
     try {
       const r = await fetch(API + "/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
       });
+      if (!r.ok) {
+        out.parentElement.classList.add("error");
+        out.previousSibling.textContent = "😬";
+        out.innerHTML = "The kitchen sent back an error (HTTP " + r.status + "). 🔥 Check the server logs.";
+        return;
+      }
       const data = await r.json();
-      placeholder.querySelector("span").innerHTML =
-        data.answer.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">map</a>');
+      out.innerHTML = linkify(data.answer);
     } catch (e) {
-      placeholder.querySelector("span").textContent = "Something went wrong. Is the server running?";
+      out.parentElement.classList.add("error");
+      out.previousSibling.textContent = "😬";
+      out.innerHTML = "Can't reach the kitchen. 🍳 The backend isn't running, or <code>API</code> "
+        + "points to the wrong place. If you opened this file directly, start the FastAPI server "
+        + "and visit it at <b>/app</b> instead.";
+    } finally {
+      send.disabled = false;
+      q.focus();
     }
-    send.disabled = false;
-    q.focus();
   }
 
-  send.onclick = ask;
+  send.onclick = () => ask();
   q.addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
+  document.querySelectorAll(".chip").forEach(c =>
+    c.addEventListener("click", () => ask(c.dataset.q)));
 </script>
 </body>
 </html>
