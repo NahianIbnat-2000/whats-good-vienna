@@ -1,380 +1,258 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional
-import json
-import math
+"""
+Vienna Eats - restaurant recommendation chatbot backend.
+
+Flow per user message:
+  1. Claude parses the free-text query into structured Places filters.
+  2. We call Google Places Text Search (New) with those filters.
+  3. Results come back sorted by rating; we attach price, address, a top review,
+     and a Google Maps link for directions.
+  4. Claude writes the natural-language answer over those results.
+
+Runs in MOCK mode if GOOGLE_MAPS_API_KEY is not set, so you can test the whole
+loop before turning on billing.
+"""
+
 import os
+import json
+import httpx
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
-app = FastAPI(title="What's Good Vienna?", version="2.0.0")
+# ---- config ----
+GOOGLE_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = "claude-sonnet-4-6"
 
+# Vienna city centre, used as the default location bias.
+VIENNA_LAT, VIENNA_LNG = 48.2082, 16.3738
+
+PLACES_URL = "https://places.googleapis.com/v1/places:searchText"
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+
+# Only request the fields we use. This list also controls how much Google bills.
+FIELD_MASK = ",".join([
+    "places.id",
+    "places.displayName",
+    "places.formattedAddress",
+    "places.rating",
+    "places.userRatingCount",
+    "places.priceLevel",
+    "places.googleMapsUri",
+    "places.currentOpeningHours.openNow",
+    "places.reviews",
+    "places.primaryType",
+])
+
+app = FastAPI(title="Vienna Eats")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=["*"],          # tighten to your frontend domain in production
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load data
-DATA_PATH = os.path.join(os.path.dirname(__file__), "vienna_restaurants.json")
-with open(DATA_PATH, "r") as f:
-    RESTAURANTS = json.load(f)
 
-PRICE_MAP = {"€": 1, "€€": 2, "€€€": 3}
-
-class ChatQuery(BaseModel):
-    query: str
-    user_lat: Optional[float] = 48.2082
-    user_lon: Optional[float] = 16.3738
-
-class RestaurantResult(BaseModel):
-    id: int
-    name: str
-    cuisine: str
-    city: str
-    address: str
-    lat: float
-    lon: float
-    price_level: str
-    rating: float
-    review_count: int
-    taste_tags: List[str]
-    food_type: List[str]
-    diet: List[str]
-    vibe: List[str]
-    use_case: List[str]
-    opening_hours: str
-    distance_km: float
-    match_score: float
-    ai_explanation: str
-    phone: str
-    website: str
-    source: str
-
-class ChatResponse(BaseModel):
-    results: List[RestaurantResult]
-    understood_filters: dict
-    total_matches: int
+class ChatRequest(BaseModel):
+    message: str
 
 
-def haversine(lat1, lon1, lat2, lon2):
-    R = 6371
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
-    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
-    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1-a))
+# Map Google's price enum to euro bands so the model can talk about them.
+PRICE_LABELS = {
+    "PRICE_LEVEL_INEXPENSIVE": "€ (budget, roughly under €15)",
+    "PRICE_LEVEL_MODERATE": "€€ (mid, roughly €15-35)",
+    "PRICE_LEVEL_EXPENSIVE": "€€€ (€35-60)",
+    "PRICE_LEVEL_VERY_EXPENSIVE": "€€€€ (€60+)",
+}
 
 
-def parse_query(query: str) -> dict:
-    q = query.lower()
-    filters = {
-        "cuisine": None, "taste_tags": [], "food_type": [],
-        "diet": [], "vibe": [], "use_case": [],
-        "max_price": None, "min_price": None, "location_hint": None
+# ---------------------------------------------------------------------------
+# Step 1: parse the user's free text into structured filters using Claude.
+# ---------------------------------------------------------------------------
+PARSE_SYSTEM = """You convert a diner's request into a JSON filter for the Google Places API.
+Return ONLY a JSON object, no prose, no backticks. Schema:
+{
+  "text_query": str,        // a clean search string, e.g. "spicy halal indian restaurant Vienna"
+  "min_rating": float|null, // 0-5, set only if the user asks for "best"/"top"/"highly rated"
+  "max_price_level": int|null, // 1=budget(<~15e) 2=mid 3=expensive 4=very. Set from price hints like "under 15", "cheap"
+  "open_now": bool,         // true only if user mentions "now"/"open"/"tonight"
+  "rank_by": str            // "RELEVANCE" normally, "DISTANCE" if user says "near"/"nearby"/"closest"
+}
+Notes: "spicy", "mild", "sweet", "halal", "hotpot", cuisine names all go into text_query as keywords.
+Always append "Vienna" to text_query if no city is named."""
+
+
+async def parse_query(message: str) -> dict:
+    if not ANTHROPIC_KEY:
+        # Fallback parser so the app works without an LLM key during early testing.
+        return {
+            "text_query": f"{message} Vienna",
+            "min_rating": 4.0 if any(w in message.lower() for w in ["best", "top"]) else None,
+            "max_price_level": 1 if any(w in message.lower() for w in ["under 15", "cheap", "budget"]) else None,
+            "open_now": "now" in message.lower() or "tonight" in message.lower(),
+            "rank_by": "DISTANCE" if "near" in message.lower() else "RELEVANCE",
+        }
+    payload = {
+        "model": ANTHROPIC_MODEL,
+        "max_tokens": 400,
+        "system": PARSE_SYSTEM,
+        "messages": [{"role": "user", "content": message}],
     }
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(ANTHROPIC_URL, json=payload, headers={
+            "x-api-key": ANTHROPIC_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        })
+    text = "".join(b.get("text", "") for b in r.json().get("content", []))
+    text = text.replace("```json", "").replace("```", "").strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {"text_query": f"{message} Vienna", "min_rating": None,
+                "max_price_level": None, "open_now": False, "rank_by": "RELEVANCE"}
 
-    # Cuisine
-    cuisine_map = {
-        "Indian": ["indian", "curry", "biryani", "masala", "tandoori", "indisch"],
-        "Vietnamese": ["vietnamese", "vietnamesisch", "pho", "banh mi", "bun"],
-        "Chinese": ["chinese", "chinesisch", "dim sum", "dumpling", "sichuan", "peking duck", "hot pot"],
-        "Thai": ["thai", "thailändisch", "pad thai", "tom yum"],
-        "Japanese": ["japanese", "japanisch", "sushi", "ramen", "tempura"],
-        "Korean": ["korean", "koreanisch", "bibimbap", "kbbq", "korean bbq"],
-        "Turkish": ["turkish", "türkisch", "kebab", "kebap", "döner"],
-        "Lebanese": ["lebanese", "libanesisch", "falafel", "hummus", "shawarma"],
-        "Israeli": ["israeli", "israelisch"],
-        "Persian": ["persian", "iranian", "iranisch"],
-        "French": ["french", "französisch", "croissant", "baguette"],
-        "Austrian": ["austrian", "österreichisch", "wiener", "schnitzel", "tafelspitz"],
-        "Italian": ["italian", "italienisch", "pizza", "pasta", "risotto"],
-        "Mexican": ["mexican", "mexican", "taco", "burrito", "nachos", "enchilada"],
-        "Burger": ["burger", "hamburger", "cheeseburger"],
-        "Seafood": ["seafood", "fish", "fisch", "shrimp", "oyster"],
-        "Vegetarian": ["vegetarian", "vegan", "plant-based"],
-        "Cafe": ["cafe", "coffee", "kaffee", "espresso", "cappuccino", "café"],
-        "Ice Cream": ["ice cream", "eis", "gelato"],
-        "International": ["international", "fusion"]
+
+# ---------------------------------------------------------------------------
+# Step 2: call Google Places (or return mock data in MOCK mode).
+# ---------------------------------------------------------------------------
+async def search_places(filters: dict) -> list[dict]:
+    if not GOOGLE_KEY:
+        return _mock_places(filters)
+
+    body = {
+        "textQuery": filters["text_query"],
+        "maxResultCount": 10,
+        "rankPreference": filters.get("rank_by", "RELEVANCE"),
+        "locationBias": {"circle": {
+            "center": {"latitude": VIENNA_LAT, "longitude": VIENNA_LNG},
+            "radius": 8000.0,
+        }},
+        "languageCode": "en",
+        "regionCode": "AT",
     }
-    for cuisine, kws in cuisine_map.items():
-        for kw in kws:
-            if kw in q:
-                filters["cuisine"] = cuisine
-                break
-        if filters["cuisine"]: break
+    if filters.get("min_rating"):
+        body["minRating"] = filters["min_rating"]
+    if filters.get("open_now"):
+        body["openNow"] = True
+    if filters.get("max_price_level"):
+        levels = ["PRICE_LEVEL_INEXPENSIVE", "PRICE_LEVEL_MODERATE",
+                  "PRICE_LEVEL_EXPENSIVE", "PRICE_LEVEL_VERY_EXPENSIVE"]
+        body["priceLevels"] = levels[:filters["max_price_level"]]
 
-    # Taste tags
-    taste_map = {
-        "spicy": ["spicy", "scharf", "hot", "chili", "pepper", "fire"],
-        "mild": ["mild", "not spicy", "gentle", "subtle", "light"],
-        "sweet": ["sweet", "süß", "dessert", "cake", "pastry", "chocolate", "sugar"],
-        "sour": ["sour", "sauer", "tangy", "citrus", "lemon"],
-        "umami": ["umami", "savory", "rich", "deep flavor"],
-        "creamy": ["creamy", "rich", "smooth", "buttery"],
-        "fried": ["fried", "crispy", "crunchy", "deep fried"],
-        "soup": ["soup", "suppe", "broth", "pho", "ramen"],
-        "curry": ["curry", "masala", "biryani"]
-    }
-    for tag, kws in taste_map.items():
-        for kw in kws:
-            if kw in q:
-                if tag not in filters["taste_tags"]: filters["taste_tags"].append(tag)
-                break
-
-    # Food type
-    food_map = {
-        "rice": ["rice", "reis", "pilaf", "biryani"],
-        "noodles": ["noodles", "nudeln", "pasta", "ramen", "pho", "pad thai"],
-        "soup": ["soup", "suppe", "broth", "pho", "ramen", "tom yum"],
-        "curry": ["curry", "masala"],
-        "dessert": ["dessert", "sweet", "cake", "ice cream", "pastry"],
-        "naan": ["naan", "bread", "roti"]
-    }
-    for ft, kws in food_map.items():
-        for kw in kws:
-            if kw in q:
-                if ft not in filters["food_type"]: filters["food_type"].append(ft)
-                break
-
-    # Diet
-    diet_map = {
-        "halal": ["halal", "muslim", "islamic"],
-        "vegetarian": ["vegetarian", "veggie", "meat-free"],
-        "vegan": ["vegan", "plant-based", "dairy-free"]
-    }
-    for d, kws in diet_map.items():
-        for kw in kws:
-            if kw in q:
-                if d not in filters["diet"]: filters["diet"].append(d)
-                break
-
-    # Vibe
-    vibe_map = {
-        "cafe": ["cafe", "coffee", "cozy", "warm"],
-        "casual": ["casual", "relaxed", "easy", "simple"],
-        "romantic": ["romantic", "date", "intimate", "candlelight"],
-        "family": ["family", "kid-friendly", "children", "kids"],
-        "cheap eats": ["cheap", "budget", "affordable", "inexpensive"]
-    }
-    for v, kws in vibe_map.items():
-        for kw in kws:
-            if kw in q:
-                if v not in filters["vibe"]: filters["vibe"].append(v)
-                break
-
-    # Use case
-    use_map = {
-        "date": ["date", "romantic", "anniversary", "special occasion"],
-        "study cafe": ["study", "work", "laptop", "wifi", "quiet", "cozy", "read"],
-        "quick lunch": ["quick lunch", "lunch", "fast", "work lunch", "business lunch"],
-        "family": ["family", "kid-friendly", "children", "kids", "group"],
-        "cheap eats": ["cheap eats", "budget", "affordable", "student", "cheap"],
-        "takeaway": ["takeaway", "take-out", "to-go", "delivery", "grab"],
-        "late-night": ["late-night", "late night", "open late", "midnight", "after hours"]
-    }
-    for u, kws in use_map.items():
-        for kw in kws:
-            if kw in q:
-                if u not in filters["use_case"]: filters["use_case"].append(u)
-                break
-
-    # Price
-    if "under €15" in q or "cheap" in q or "budget" in q or "student" in q:
-        filters["max_price"] = "€"
-    elif "under €25" in q or "moderate" in q or "mid-range" in q:
-        filters["max_price"] = "€€"
-    elif "expensive" in q or "fancy" in q or "fine dining" in q or "special" in q:
-        filters["min_price"] = "€€€"
-
-    if "€€€" in q: filters["min_price"] = "€€€"
-    elif "€€" in q and "€€€" not in q: 
-        filters["max_price"] = "€€"; filters["min_price"] = "€€"
-    elif "€" in q and "€€" not in q: filters["max_price"] = "€"
-
-    return filters
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(PLACES_URL, json=body, headers={
+            "X-Goog-Api-Key": GOOGLE_KEY,
+            "X-Goog-FieldMask": FIELD_MASK,
+            "Content-Type": "application/json",
+        })
+    places = r.json().get("places", [])
+    return [_normalise(p) for p in places]
 
 
-def score_restaurant(r, filters, user_lat, user_lon):
-    score = 0.0
-    reasons = []
-
-    dist = haversine(user_lat, user_lon, r["lat"], r["lon"])
-    distance_score = max(0, 1 - (dist / 5))
-    score += distance_score * 15
-
-    # Cuisine
-    if filters["cuisine"] and filters["cuisine"].lower() == r["cuisine"].lower():
-        score += 25
-        reasons.append(f"Cuisine: {r['cuisine']}")
-
-    # Taste tags
-    taste_matches = [t for t in filters["taste_tags"] if t in r["taste_tags"]]
-    if taste_matches:
-        score += len(taste_matches) * 12
-        reasons.append(f"Taste: {', '.join(taste_matches)}")
-
-    # Food type
-    food_matches = [f for f in filters["food_type"] if f in r["food_type"]]
-    if food_matches:
-        score += len(food_matches) * 10
-        reasons.append(f"Food: {', '.join(food_matches)}")
-
-    # Diet
-    diet_matches = [d for d in filters["diet"] if d in r["diet"]]
-    if diet_matches:
-        score += len(diet_matches) * 15
-        reasons.append(f"Diet: {', '.join(diet_matches)}")
-
-    # Vibe
-    vibe_matches = [v for v in filters["vibe"] if v in r["vibe"]]
-    if vibe_matches:
-        score += len(vibe_matches) * 8
-        reasons.append(f"Vibe: {', '.join(vibe_matches)}")
-
-    # Use case
-    use_matches = [u for u in filters["use_case"] if u in r["use_case"]]
-    if use_matches:
-        score += len(use_matches) * 10
-        reasons.append(f"Perfect for: {', '.join(use_matches)}")
-
-    # Price
-    if filters["max_price"]:
-        if PRICE_MAP[r["price_level"]] <= PRICE_MAP[filters["max_price"]]:
-            score += 10
-            reasons.append(f"Budget: {r['price_level']}")
-        else:
-            score -= 25
-    if filters["min_price"]:
-        if PRICE_MAP[r["price_level"]] >= PRICE_MAP[filters["min_price"]]:
-            score += 10
-            reasons.append(f"Price: {r['price_level']}")
-        else:
-            score -= 15
-
-    # Rating & popularity
-    score += (r["rating"] - 3.0) * 6
-    if r["rating"] >= 4.3: reasons.append(f"Top rated ({r['rating']}/5)")
-    score += min(r["review_count"] / 400, 6)
-
-    # No filters fallback
-    if not any([filters["cuisine"], filters["taste_tags"], filters["food_type"], 
-                filters["diet"], filters["vibe"], filters["use_case"], filters["max_price"]]):
-        score += r["rating"] * 6 + distance_score * 12
-
-    return score, dist, reasons
-
-
-def generate_explanation(r, filters, reasons, dist):
-    parts = []
-
-    # Opening
-    if filters["cuisine"] and r["cuisine"].lower() == filters["cuisine"].lower():
-        parts.append(f"A top-rated {r['cuisine']} spot")
-    else:
-        parts.append(f"A well-loved {r['cuisine']} restaurant")
-
-    # Distance
-    if dist < 0.5: parts.append("just a short walk away")
-    elif dist < 1.5: parts.append(f"about {dist:.1f} km from you")
-    else: parts.append(f"{dist:.1f} km away")
-
-    # Key features
-    features = []
-    if "spicy" in r["taste_tags"]: features.append("known for bold, spicy flavors")
-    if "curry" in r["taste_tags"]: features.append("famous for rich curries")
-    if "soup" in r["taste_tags"]: features.append("hearty soups")
-    if "sweet" in r["taste_tags"]: features.append("amazing sweet treats")
-    if "halal" in r["diet"]: features.append("halal-certified")
-    if "vegan" in r["diet"]: features.append("fully vegan menu")
-    if "vegetarian" in r["diet"]: features.append("great vegetarian options")
-    if "cafe" in r["vibe"]: features.append("perfect cafe atmosphere")
-    if "romantic" in r["vibe"]: features.append("romantic ambiance")
-    if "family" in r["vibe"]: features.append("family-friendly")
-    if "study cafe" in r["use_case"]: features.append("quiet and study-friendly")
-    if "date" in r["use_case"]: features.append("ideal for dates")
-    if "late-night" in r["use_case"]: features.append("open late")
-    if "takeaway" in r["use_case"]: features.append("quick takeaway")
-
-    if features: parts.append("— " + ", ".join(features))
-
-    # Price & rating
-    parts.append(f"Rated {r['rating']}/5 with {r['review_count']} reviews. Price: {r['price_level']}.")
-
-    return " ".join(parts)
-
-
-@app.get("/")
-def root():
-    return {"message": "What's Good Vienna? API v2", "restaurants": len(RESTAURANTS)}
-
-
-@app.post("/chat", response_model=ChatResponse)
-def chat(query_data: ChatQuery):
-    filters = parse_query(query_data.query)
-
-    scored = []
-    for r in RESTAURANTS:
-        score, dist, reasons = score_restaurant(r, filters, query_data.user_lat, query_data.user_lon)
-        scored.append((score, dist, reasons, r))
-
-    scored.sort(key=lambda x: x[0], reverse=True)
-
-    top_results = []
-    for score, dist, reasons, r in scored[:5]:
-        if score > 0:
-            explanation = generate_explanation(r, filters, reasons, dist)
-            top_results.append(RestaurantResult(
-                id=r["id"], name=r["name"], cuisine=r["cuisine"], city=r["city"],
-                address=r["address"], lat=r["lat"], lon=r["lon"],
-                price_level=r["price_level"], rating=r["rating"], review_count=r["review_count"],
-                taste_tags=r["taste_tags"], food_type=r["food_type"], diet=r["diet"],
-                vibe=r["vibe"], use_case=r["use_case"], opening_hours=r["opening_hours"],
-                distance_km=round(dist, 2), match_score=round(score, 1),
-                ai_explanation=explanation, phone=r["phone"], website=r["website"], source=r["source"]
-            ))
-
-    return ChatResponse(
-        results=top_results,
-        understood_filters=filters,
-        total_matches=len([s for s in scored if s[0] > 0])
-    )
-
-
-@app.get("/restaurants")
-def get_restaurants(
-    cuisine: Optional[str] = None, taste: Optional[str] = None,
-    food_type: Optional[str] = None, diet: Optional[str] = None,
-    vibe: Optional[str] = None, use_case: Optional[str] = None,
-    max_price: Optional[str] = None, min_rating: Optional[float] = None
-):
-    results = RESTAURANTS
-    if cuisine: results = [r for r in results if r["cuisine"].lower() == cuisine.lower()]
-    if taste: results = [r for r in results if taste in r["taste_tags"]]
-    if food_type: results = [r for r in results if food_type in r["food_type"]]
-    if diet: results = [r for r in results if diet in r["diet"]]
-    if vibe: results = [r for r in results if vibe in r["vibe"]]
-    if use_case: results = [r for r in results if use_case in r["use_case"]]
-    if max_price: results = [r for r in results if PRICE_MAP[r["price_level"]] <= PRICE_MAP[max_price]]
-    if min_rating: results = [r for r in results if r["rating"] >= min_rating]
-    return {"count": len(results), "restaurants": results}
-
-
-@app.get("/metadata")
-def get_metadata():
+def _normalise(p: dict) -> dict:
+    reviews = p.get("reviews", [])
+    top_review = ""
+    if reviews:
+        top_review = reviews[0].get("text", {}).get("text", "")[:240]
     return {
-        "cuisines": sorted(set(r["cuisine"] for r in RESTAURANTS)),
-        "taste_tags": sorted(set(t for r in RESTAURANTS for t in r["taste_tags"])),
-        "food_types": sorted(set(f for r in RESTAURANTS for f in r["food_type"])),
-        "diets": sorted(set(d for r in RESTAURANTS for d in r["diet"])),
-        "vibes": sorted(set(v for r in RESTAURANTS for v in r["vibe"])),
-        "use_cases": sorted(set(u for r in RESTAURANTS for u in r["use_case"])),
-        "cities": sorted(set(r["city"] for r in RESTAURANTS)),
-        "total": len(RESTAURANTS)
+        "name": p.get("displayName", {}).get("text", "Unknown"),
+        "rating": p.get("rating"),
+        "rating_count": p.get("userRatingCount", 0),
+        "price": PRICE_LABELS.get(p.get("priceLevel", ""), "price not listed"),
+        "address": p.get("formattedAddress", ""),
+        "open_now": p.get("currentOpeningHours", {}).get("openNow"),
+        "maps_url": p.get("googleMapsUri", ""),
+        "top_review": top_review,
     }
 
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+def _rank(places: list[dict]) -> list[dict]:
+    # Sort best-to-worst by rating, breaking ties by how many ratings (trust).
+    return sorted(places, key=lambda x: (x.get("rating") or 0, x.get("rating_count") or 0),
+                  reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# Step 3: Claude writes the answer over the ranked results.
+# ---------------------------------------------------------------------------
+ANSWER_SYSTEM = """You are a friendly Vienna food guide. You are given the user's request and a
+ranked list of restaurants (already sorted best rating first). Recommend the top few that fit.
+For each: name, rating with count, price band, one line on why, the address, and the maps link
+for directions. Be concise. If the list is empty, say so plainly and suggest loosening a filter.
+Do not invent places or details not in the data."""
+
+
+async def write_answer(message: str, places: list[dict]) -> str:
+    if not ANTHROPIC_KEY:
+        return _plain_answer(places)
+    payload = {
+        "model": ANTHROPIC_MODEL,
+        "max_tokens": 1000,
+        "system": ANSWER_SYSTEM,
+        "messages": [{"role": "user", "content":
+            f"User asked: {message}\n\nRanked results:\n{json.dumps(places, indent=2)}"}],
+    }
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(ANTHROPIC_URL, json=payload, headers={
+            "x-api-key": ANTHROPIC_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        })
+    return "".join(b.get("text", "") for b in r.json().get("content", []))
+
+
+def _plain_answer(places: list[dict]) -> str:
+    if not places:
+        return "No matches found. Try loosening the price or cuisine filter."
+    lines = []
+    for p in places[:5]:
+        r = f"{p['rating']}\u2605 ({p['rating_count']})" if p["rating"] else "no rating"
+        lines.append(f"- {p['name']} - {r} - {p['price']}\n  {p['address']}\n  {p['maps_url']}")
+    return "Here are the top matches:\n\n" + "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+@app.get("/")
+def health():
+    mode = "LIVE" if GOOGLE_KEY else "MOCK"
+    return {"status": "ok", "mode": mode}
+
+
+@app.get("/app")
+def ui():
+    return FileResponse("static/index.html")
+
+
+@app.post("/chat")
+async def chat(req: ChatRequest):
+    filters = await parse_query(req.message)
+    places = _rank(await search_places(filters))
+    answer = await write_answer(req.message, places)
+    return {"answer": answer, "filters": filters, "results": places}
+
+
+# ---------------------------------------------------------------------------
+def _mock_places(filters: dict) -> list[dict]:
+    """Stand-in data so you can test the loop before enabling billing."""
+    sample = [
+        {"name": "Dilkhush", "rating": 4.6, "rating_count": 820,
+         "price": PRICE_LABELS["PRICE_LEVEL_INEXPENSIVE"],
+         "address": "Hofgasse 1, 1110 Wien", "open_now": True,
+         "maps_url": "https://maps.google.com/?cid=1",
+         "top_review": "Best Pakistani-style spicy curry in Vienna, very generous portions."},
+        {"name": "Tewa Naschmarkt", "rating": 4.4, "rating_count": 1530,
+         "price": PRICE_LABELS["PRICE_LEVEL_MODERATE"],
+         "address": "Naschmarkt Stand 671, 1040 Wien", "open_now": True,
+         "maps_url": "https://maps.google.com/?cid=2",
+         "top_review": "Fresh, mildly spiced halal bowls, fast service at lunch."},
+        {"name": "Der Wiener Deewan", "rating": 4.5, "rating_count": 4100,
+         "price": PRICE_LABELS["PRICE_LEVEL_INEXPENSIVE"],
+         "address": "Liechtensteinstrasse 10, 1090 Wien", "open_now": False,
+         "maps_url": "https://maps.google.com/?cid=3",
+         "top_review": "Pay-as-you-wish Pakistani buffet, reliably spicy and cheap."},
+    ]
+    if filters.get("min_rating"):
+        sample = [s for s in sample if s["rating"] >= filters["min_rating"]]
+    return sample
